@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -11,8 +12,7 @@
 template<typename T1, typename T2>
 void assert_eq(const T1 expected, const T2 actual) {
     if (expected != actual) {
-        std::string str = std::format("Assertion failed: expected {}, got {}", expected, actual);
-        std::puts(str.c_str());
+        std::println(stderr, "Assertion failed: expected {}, got {}", expected, actual);
         std::exit(EXIT_FAILURE);
     }
 }
