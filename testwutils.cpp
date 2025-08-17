@@ -1,10 +1,21 @@
 #include <cassert>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <print>
 #include <typeinfo>
+#include <format>
 
 #include "wutils.hpp"
+
+template<typename T1, typename T2>
+void assert_eq(const T1 expected, const T2 actual) {
+    if (expected != actual) {
+        std::string str = std::format("Assertion failed: expected {}, got {}", expected, actual);
+        std::puts(str.c_str());
+        std::exit(EXIT_FAILURE);
+    }
+}
 
 int main() {
     using namespace wutils;
@@ -19,7 +30,7 @@ int main() {
         ustring us_ascii = ustring_from_wstring(ws_ascii);
         std::wstring ws_converted = wstring_from_ustring(us_ascii);
         assert(ws_converted == ws_ascii);
-        assert(wswidth(ws_ascii) == EXPECTED);
+        assert_eq(EXPECTED, wswidth(ws_ascii));
         std::println("Test 1 (ASCII): Passed");
     }
 
@@ -32,7 +43,7 @@ int main() {
         ustring us_unicode = ustring_from_wstring(ws_unicode);
         std::wstring ws_converted = wstring_from_ustring(us_unicode);
         assert(ws_converted == ws_unicode);
-        assert(wswidth(ws_unicode) == EXPECTED);
+        assert_eq(EXPECTED, wswidth(ws_unicode));
         std::println("Test 2 (Unicode BMP): Passed");
     }
 
@@ -50,17 +61,18 @@ int main() {
             assert(us_surrogate.length() == ws_surrogate.length());
         }
         // The wswidth should also be correct
-        assert(wswidth(ws_surrogate) == EXPECTED);
+        assert_eq(EXPECTED, wswidth(ws_surrogate));
         std::println("Test 3 (Surrogate Pairs): Passed");
     }
     // Test Case 4: Empty string
     {
+        constexpr size_t EXPECTED = 0;
         std::wstring_view ws_empty = L"";
         ustring us_empty = ustring_from_wstring(ws_empty);
         std::wstring ws_converted = wstring_from_ustring(us_empty);
         assert(ws_converted.empty());
         assert(us_empty.empty());
-        assert(wswidth(ws_empty) == 0);
+        assert_eq(EXPECTED, wswidth(ws_empty));
         std::println("Test 4 (Empty String): Passed");
     }
 

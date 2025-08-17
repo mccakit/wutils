@@ -2,24 +2,12 @@
 
 CC = cl
 
-CFLAGS = /W4 /WX /std:c++23preview /EHsc
+CFLAGS = /W4 /WX /std:c++23preview /EHsc /Od /Zi /utf-8
 
 SRCS = wutils.cpp testwutils.cpp
 OBJS = $(SRCS:.cpp=.obj)
 
 TARGET = testwutils.exe
-
-# The default build type is 'release'
-!IF "$(BUILD_TYPE)" == ""
-BUILD_TYPE = release
-!ENDIF
-
-# Conditional flags for release and debug builds
-!IF "$(BUILD_TYPE)" == "release"
-CFLAGS = $(CFLAGS) /O2 # Optimization level
-!ELSEIF "$(BUILD_TYPE)" == "debug"
-CFLAGS = $(CFLAGS) /Od /Zi # No optimization, add debug info
-!ENDIF
 
 all: $(TARGET)
 
@@ -32,12 +20,6 @@ $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) $(INCLUDES) /c $< /Fo$@
 
 # Phony targets
-release:
-	nmake BUILD_TYPE=release
-
-debug:
-	nmake BUILD_TYPE=debug
-
 clean:
 	@ECHO Deleting build files...
 	-if exist $(TARGET) del $(TARGET)
