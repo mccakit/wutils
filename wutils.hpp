@@ -3,6 +3,7 @@
 #include <wchar.h>
 #include <uchar.h>
 #include <string>
+#include <iostream>
 #include <ranges>
 
 #ifdef _WIN32
@@ -62,8 +63,7 @@ inline int wswidth(const std::wstring_view ws) {
 
 
 // Windows sucks and can't properly print std::wcout to terminal so we use a wrapper
-
-void wprint(const std::wstring_view ws) {
+inline void wprint(const std::wstring_view ws) {
 #ifdef _WIN32
     WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
 #else
@@ -71,7 +71,7 @@ void wprint(const std::wstring_view ws) {
 #endif
 }
 
-void wprintln(const std::wstring_view ws) {
+inline void wprintln(const std::wstring_view ws) {
 #ifdef _WIN32
     HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
     WriteConsoleW(console, ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
