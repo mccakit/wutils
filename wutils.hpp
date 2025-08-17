@@ -7,8 +7,8 @@
 
 namespace wutils {
 
-size_t uswidth(const std::u32string_view u32s);
-size_t uswidth(const std::u16string_view u16s);
+int uswidth(const std::u32string_view u32s);
+int uswidth(const std::u16string_view u16s);
 
 static constexpr bool wchar_is_char16 = sizeof(wchar_t) == sizeof(char16_t);
 static constexpr bool wchar_is_char32 = sizeof(wchar_t) == sizeof(char32_t);
@@ -51,7 +51,7 @@ inline std::wstring wstring_from_ustring(ustring_view us) {
 
 #endif
 
-inline size_t wswidth(const std::wstring_view ws) {
+inline int wswidth(const std::wstring_view ws) {
     ustring us = ustring_from_wstring(ws);
     return uswidth(us);
 }

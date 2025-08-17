@@ -365,11 +365,11 @@ std::u32string u32_from_u16(const std::u16string_view u16s) {
     return u32s;
 }
 
-size_t wutils::uswidth(const std::u32string_view u32s) {
-    return static_cast<size_t>(mk_wcswidth(u32s.data(), u32s.size()));
+int wutils::uswidth(const std::u32string_view u32s) {
+    return mk_wcswidth(u32s.data(), u32s.size());
 }
 
-size_t wutils::uswidth(const std::u16string_view u16s) {
+int wutils::uswidth(const std::u16string_view u16s) {
     std::u32string u32s = u32_from_u16(u16s);
-    return static_cast<size_t>(mk_wcswidth(u32s.data(), u32s.size()));
+    return mk_wcswidth(u32s.data(), u32s.size());
 }
