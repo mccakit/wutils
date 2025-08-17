@@ -70,6 +70,10 @@
 #include <string>
 #include <stdint.h>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 #include "wutils.hpp"
 
 struct interval {
@@ -398,3 +402,16 @@ int wutils::uswidth(const std::u16string_view u16s) {
     std::u32string u32s = u32_from_u16(u16s);
     return mk_wcswidth(u32s.data(), u32s.size());
 }
+
+#ifdef _WIN32
+void wprint(const std::wstring_view ws) {
+    WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
+}
+
+void wprintln(const std::wstring_view ws) {
+    HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+    WriteConsoleW(console, ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
+
+    WriteConsoleW(console, L"\n", 1, NULL, NULL);
+}
+#endif
