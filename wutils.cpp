@@ -198,9 +198,25 @@ int mk_wcwidth(char32_t ucs)
 
   /* if we arrive here, ucs is not a combining or C0/C1 control character */
 
+  // This implementation is WRONG! It doesn't recognize double-width characters such as emojis properly
+  // return 1 + 
+  //   (ucs >= 0x1100 &&
+  //    (ucs <= 0x115f ||                    /* Hangul Jamo init. consonants */
+  //     ucs == 0x2329 || ucs == 0x232a ||
+  //     (ucs >= 0x2e80 && ucs <= 0xa4cf &&
+  //      ucs != 0x303f) ||                  /* CJK ... Yi */
+  //     (ucs >= 0xac00 && ucs <= 0xd7a3) || /* Hangul Syllables */
+  //     (ucs >= 0xf900 && ucs <= 0xfaff) || /* CJK Compatibility Ideographs */
+  //     (ucs >= 0xfe10 && ucs <= 0xfe19) || /* Vertical forms */
+  //     (ucs >= 0xfe30 && ucs <= 0xfe6f) || /* CJK Compatibility Forms */
+  //     (ucs >= 0xff00 && ucs <= 0xff60) || /* Fullwidth Forms */
+  //     (ucs >= 0xffe0 && ucs <= 0xffe6) ||
+  //     (ucs >= 0x20000 && ucs <= 0x2fffd) ||
+  //     (ucs >= 0x30000 && ucs <= 0x3fffd)));
+  
+  // Fixed version
   return 1 + 
-    (ucs >= 0x1100 &&
-     (ucs <= 0x115f ||                    /* Hangul Jamo init. consonants */
+    ((ucs >= 0x1100 && ucs <= 0x115f) ||  /* Hangul Jamo init. consonants */
       ucs == 0x2329 || ucs == 0x232a ||
       (ucs >= 0x2e80 && ucs <= 0xa4cf &&
        ucs != 0x303f) ||                  /* CJK ... Yi */
@@ -211,7 +227,16 @@ int mk_wcwidth(char32_t ucs)
       (ucs >= 0xff00 && ucs <= 0xff60) || /* Fullwidth Forms */
       (ucs >= 0xffe0 && ucs <= 0xffe6) ||
       (ucs >= 0x20000 && ucs <= 0x2fffd) ||
-      (ucs >= 0x30000 && ucs <= 0x3fffd)));
+      (ucs >= 0x30000 && ucs <= 0x3fffd) ||
+      /* Add emoji and symbol ranges */
+      (ucs >= 0x1F000 && ucs <= 0x1F9FF) || /* Emoji and various symbols */
+      (ucs >= 0x1F300 && ucs <= 0x1F5FF) || /* Misc Symbols and Pictographs */
+      (ucs >= 0x1F600 && ucs <= 0x1F64F) || /* Emoticons */
+      (ucs >= 0x1F680 && ucs <= 0x1F6FF) || /* Transport and Map Symbols */
+      (ucs >= 0x1F700 && ucs <= 0x1F77F) || /* Alchemical Symbols */
+      (ucs >= 0x1F780 && ucs <= 0x1F7FF) || /* Geometric Shapes Extended */
+      (ucs >= 0x1F800 && ucs <= 0x1F8FF) || /* Supplemental Arrows-C */
+      (ucs >= 0x1F900 && ucs <= 0x1F9FF));  /* Supplemental Symbols and Pictographs */
 }
 
 

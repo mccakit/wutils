@@ -74,7 +74,7 @@ int main() {
     // Test Case 3: Character requiring a surrogate pair (if wchar_t is 16 bits)
     // The character '😂' (FACE WITH TEARS OF JOY) has code point U+1F602
     {
-        constexpr int EXPECTED = 3;
+        constexpr int EXPECTED = 6;
         std::wstring ws_surrogate = L"😂😂😂";
         ustring us_surrogate = ustring_from_wstring(ws_surrogate);
         std::wstring ws_converted = wstring_from_ustring(us_surrogate);
