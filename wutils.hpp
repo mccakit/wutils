@@ -5,6 +5,10 @@
 #include <string>
 #include <ranges>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 namespace wutils {
 
 int uswidth(const std::u32string_view u32s);
@@ -56,4 +60,27 @@ inline int wswidth(const std::wstring_view ws) {
     return uswidth(us);
 }
 
+
+// Windows sucks and can't properly print std::wcout to terminal so we use a wrapper
+
+void wprint(const std::wstring_view ws) {
+#ifdef _WIN32
+    WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
+#else
+    std::wcout << ws;
+#endif
+}
+
+void wprintln(const std::wstring_view ws) {
+#ifdef _WIN32
+    HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+    WriteConsoleW(console, ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
+
+    WriteConsoleW(console, L"\n", 1, NULL, NULL);
+#else
+    std::wcout << ws << std::endl;
+#endif
+}
+
 } // namespace wutils
+

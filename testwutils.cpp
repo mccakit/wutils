@@ -7,26 +7,39 @@
 #include <typeinfo>
 #include <format>
 #include <locale>
+#include <sstream>
+
+// Windows-specific headers for console I/O
+#if defined(_WIN32)
+#include <io.h>
+#include <fcntl.h>
+#endif
 
 #include "wutils.hpp"
 
 template<typename T>
 void assert_eq(const T expected, const T actual) {
     if (expected != actual) {
-        std::wcout << L"Assertion failed: expected " << expected << ", got " << actual << std::endl;
+        std::wstringstream wss;
+        wss << L"Assertion failed: expected " << expected << L", got " << actual;
+        wutils::wprintln(wss.str());
         std::exit(EXIT_FAILURE);
     }
 }
 
 int main() {
     using namespace wutils;
-
+#if defined(_WIN32)
+    _setmode(_fileno(stdout), _O_U16TEXT);
+    _setmode(_fileno(stderr), _O_U16TEXT);
+#else
     // Initialize locale
     std::locale::global(std::locale(""));
     std::wcout.imbue(std::locale());
+#endif
 
-    std::wcout << L"Starting tests..." << std::endl;
-    std::wcout << L"Detected wchar_t conversion type: " << typeid(uchar_t).name() << std::endl;
+    wprintln(L"Starting tests...");
+    // std::wcout << L"Detected wchar_t conversion type: " << typeid(uchar_t).name() << std::endl;
 
     // Test Case 1: Simple ASCII string
     {
@@ -34,10 +47,12 @@ int main() {
         std::wstring ws_ascii = L"Hello, World!";
         ustring us_ascii = ustring_from_wstring(ws_ascii);
         std::wstring ws_converted = wstring_from_ustring(us_ascii);
-        std::wcout << L"Length of " << ws_ascii << L": " << wswidth(ws_ascii) << std::endl;
+        std::wstringstream wss; wss << L"Length of " << ws_ascii << L": " << wswidth(ws_ascii);
+        wprintln(wss.str());
         assert(ws_converted == ws_ascii);
         assert_eq(EXPECTED, wswidth(ws_ascii));
-        std::wcout << L"Test 1 (ASCII): Passed" << std::endl;
+        std::wstringstream wss2; wss2 << L"Test 1 (ASCII): Passed";
+        wprintln(wss2.str());
     }
 
     // Test Case 2: Unicode character within the Basic Multilingual Plane (BMP)
@@ -48,10 +63,12 @@ int main() {
         std::wstring ws_unicode = L"Résumé";
         ustring us_unicode = ustring_from_wstring(ws_unicode);
         std::wstring ws_converted = wstring_from_ustring(us_unicode);
-        std::wcout << L"Length of " << ws_unicode << L": " << wswidth(ws_unicode) << std::endl;
+        std::wstringstream wss; wss << L"Length of " << ws_unicode << L": " << wswidth(ws_unicode);
+        wprintln(wss.str());
         assert(ws_converted == ws_unicode);
         assert_eq(EXPECTED, wswidth(ws_unicode));
-        std::wcout << "Test 2 (Unicode BMP): Passed" << std::endl;
+        std::wstringstream wss2; wss2 << "Test 2 (Unicode BMP): Passed";
+        wprintln(wss2.str());
     }
 
     // Test Case 3: Character requiring a surrogate pair (if wchar_t is 16 bits)
@@ -61,7 +78,8 @@ int main() {
         std::wstring ws_surrogate = L"😂😂😂";
         ustring us_surrogate = ustring_from_wstring(ws_surrogate);
         std::wstring ws_converted = wstring_from_ustring(us_surrogate);
-        std::wcout << L"Length of " << ws_surrogate << L": " << wswidth(ws_surrogate) << std::endl;
+        std::wstringstream wss; wss << L"Length of " << ws_surrogate << L": " << wswidth(ws_surrogate);
+        wprintln(wss.str());
         if constexpr (wchar_is_char16) {
             // The original wstring and the converted one should match
             assert(ws_converted == ws_surrogate);
@@ -70,7 +88,8 @@ int main() {
         }
         // The wswidth should also be correct
         assert_eq(EXPECTED, wswidth(ws_surrogate));
-        std::wcout << "Test 3 (Surrogate Pairs): Passed" << std::endl;
+        std::wstringstream wss2; wss2 << "Test 3 (Surrogate Pairs): Passed";
+        wprintln(wss2.str());
     }
     // Test Case 4: Empty string
     {
@@ -78,14 +97,17 @@ int main() {
         std::wstring_view ws_empty = L"";
         ustring us_empty = ustring_from_wstring(ws_empty);
         std::wstring ws_converted = wstring_from_ustring(us_empty);
-        std::wcout << L"Length of empty string: " << wswidth(ws_empty) << std::endl;
+        std::wstringstream wss; wss << L"Length of empty string: " << wswidth(ws_empty);
+        wprintln(wss.str());
         assert(ws_converted.empty());
         assert(us_empty.empty());
         assert_eq(EXPECTED, wswidth(ws_empty));
-        std::wcout << L"Test 4 (Empty String): Passed" << std::endl;
+        std::wstringstream wss2; wss2 << L"Test 4 (Empty String): Passed";
+        wprintln(wss2.str());
     }
 
-    std::wcout << "All tests completed successfully!" << std::endl;
+    std::wstringstream wss; wss << "All tests completed successfully!";
+    wprintln(wss.str());
 
     return 0;
 }
