@@ -2,17 +2,15 @@
 #include <iostream>
 #include <string>
 #include <print>
+#include <typeinfo>
 
 #include "wutils.hpp"
 
 int main() {
     using namespace wutils;
 
-    std::cout << "Starting tests..." << std::endl;
-    std::cout << "Detected wchar_t size: " << sizeof(wchar_t) << " bytes" << std::endl;
-
-    std::cout << std::boolalpha << "Is wchar_t same as char16_t? " << std::is_same_v<wchar_t, char16_t> << std::endl;
-    std::cout << std::boolalpha << "Is wchar_t same as char32_t? " << std::is_same_v<wchar_t, char32_t> << std::endl;
+    std::println("Starting tests...");
+    std::println("Detected wchar_t conversion type: {}", typeid(uchar_t).name());
 
     // Test Case 1: Simple ASCII string
     {
@@ -21,7 +19,7 @@ int main() {
         std::wstring ws_converted = wstring_from_ustring(us_ascii);
         assert(ws_converted == ws_ascii);
         assert(wswidth(ws_ascii) == ws_ascii.length());
-        std::cout << "Test 1 (ASCII): Passed" << std::endl;
+        std::println("Test 1 (ASCII): Passed");
     }
 
     // Test Case 2: Unicode character within the Basic Multilingual Plane (BMP)
@@ -33,13 +31,12 @@ int main() {
         std::wstring ws_converted = wstring_from_ustring(us_unicode);
         assert(ws_converted == ws_unicode);
         assert(wswidth(ws_unicode) == ws_unicode.length());
-        std::cout << "Test 2 (Unicode BMP): Passed" << std::endl;
+        std::println("Test 2 (Unicode BMP): Passed");
     }
 
     // Test Case 3: Character requiring a surrogate pair (if wchar_t is 16 bits)
     // The character '😂' (FACE WITH TEARS OF JOY) has code point U+1F602
     if constexpr (sizeof(wchar_t) == sizeof(char16_t)) {
-        std::cout << "Testing surrogate pair handling..." << std::endl;
         std::wstring_view ws_surrogate = L"Emoji: 😂";
         ustring us_surrogate = ustring_from_wstring(ws_surrogate);
         std::wstring ws_converted = wstring_from_ustring(us_surrogate);
@@ -49,9 +46,9 @@ int main() {
         assert(us_surrogate.length() == ws_surrogate.length());
         // The wswidth should also be correct
         assert(wswidth(ws_surrogate) == ws_surrogate.length());
-        std::cout << "Test 3 (Surrogate Pairs): Passed" << std::endl;
+        std::println("Test 3 (Surrogate Pairs): Passed");
     } else {
-        std::cout << "Test 3 (Surrogate Pairs): Skipped (wchar_t is not 16-bit)" << std::endl;
+        std::println("Test 3 (Surrogate Pairs): Skipped (wchar_t is not 16-bit)");
     }
 
     // Test Case 4: Empty string
@@ -62,10 +59,10 @@ int main() {
         assert(ws_converted.empty());
         assert(us_empty.empty());
         assert(wswidth(ws_empty) == 0);
-        std::cout << "Test 4 (Empty String): Passed" << std::endl;
+        std::println("Test 4 (Empty String): Passed");
     }
 
-    std::cout << "All tests completed successfully!" << std::endl;
+    std::println("All tests completed successfully!");
 
     return 0;
 }
