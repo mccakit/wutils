@@ -1,0 +1,45 @@
+# MSVC Makefile (for use with Visual Studio 'nmake' and 'cl')
+
+CC = cl
+
+CFLAGS = /W4 /WX /std:c++23preview /EHsc
+
+SRCS = wutils.cpp testwutils.cpp
+OBJS = $(SRCS:.cpp=.obj)
+
+TARGET = testwutils.exe
+
+# The default build type is 'release'
+!IF "$(BUILD_TYPE)" == ""
+BUILD_TYPE = release
+!ENDIF
+
+# Conditional flags for release and debug builds
+!IF "$(BUILD_TYPE)" == "release"
+CFLAGS = $(CFLAGS) /O2 # Optimization level
+!ELSEIF "$(BUILD_TYPE)" == "debug"
+CFLAGS = $(CFLAGS) /Od /Zi # No optimization, add debug info
+!ENDIF
+
+all: $(TARGET)
+
+# Rule to link the object files into the executable.
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) /Fe$@
+
+# Rule to compile a C++ source file into an object file.
+.cpp.obj:
+	$(CC) $(CFLAGS) $(INCLUDES) /c $< /Fo$@
+
+# Phony targets
+release:
+	nmake BUILD_TYPE=release
+
+debug:
+	nmake BUILD_TYPE=debug
+
+clean:
+	@ECHO Deleting build files...
+	-if exist $(TARGET) del $(TARGET)
+	-if exist *.obj del *.obj
+	@ECHO Clean complete.
