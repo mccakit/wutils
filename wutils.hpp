@@ -45,12 +45,10 @@ inline ustring ustring_from_wstring(std::wstring_view ws) {
 }
 
 inline std::wstring wstring_from_ustring(ustring_view us) {
-
     return us | std::ranges::views::transform([](uchar_t uc) {
         return static_cast<wchar_t>(uc);
     }) | std::ranges::to<std::wstring>();
 } 
-
 #endif
 
 inline int wswidth(const std::wstring_view ws) {

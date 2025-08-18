@@ -5,15 +5,8 @@
 #include <string_view>
 #include <print>
 #include <typeinfo>
-#include <format>
 #include <locale>
 #include <sstream>
-
-// Windows-specific headers for console I/O
-#if defined(_WIN32)
-#include <io.h>
-#include <fcntl.h>
-#endif
 
 #include "wutils.hpp"
 
@@ -29,17 +22,13 @@ void assert_eq(const T expected, const T actual) {
 
 int main() {
     using namespace wutils;
-#if defined(_WIN32)
-    _setmode(_fileno(stdout), _O_U16TEXT);
-    _setmode(_fileno(stderr), _O_U16TEXT);
-#else
     // Initialize locale
     std::locale::global(std::locale(""));
     std::wcout.imbue(std::locale());
-#endif
 
     wprintln(L"Starting tests...");
-    // std::wcout << L"Detected wchar_t conversion type: " << typeid(uchar_t).name() << std::endl;
+    std::wstringstream wss1; wss1 << L"Detected wchar_t conversion type: " << typeid(uchar_t).name();
+    wprintln(wss1.str());
 
     // Test Case 1: Simple ASCII string
     {
@@ -51,8 +40,7 @@ int main() {
         wprintln(wss.str());
         assert(ws_converted == ws_ascii);
         assert_eq(EXPECTED, wswidth(ws_ascii));
-        std::wstringstream wss2; wss2 << L"Test 1 (ASCII): Passed";
-        wprintln(wss2.str());
+        wprintln(L"Test 1 (ASCII): Passed");
     }
 
     // Test Case 2: Unicode character within the Basic Multilingual Plane (BMP)
@@ -67,8 +55,7 @@ int main() {
         wprintln(wss.str());
         assert(ws_converted == ws_unicode);
         assert_eq(EXPECTED, wswidth(ws_unicode));
-        std::wstringstream wss2; wss2 << "Test 2 (Unicode BMP): Passed";
-        wprintln(wss2.str());
+        wprintln(L"Test 2 (Unicode BMP): Passed");
     }
 
     // Test Case 3: Character requiring a surrogate pair (if wchar_t is 16 bits)
@@ -88,8 +75,7 @@ int main() {
         }
         // The wswidth should also be correct
         assert_eq(EXPECTED, wswidth(ws_surrogate));
-        std::wstringstream wss2; wss2 << "Test 3 (Surrogate Pairs): Passed";
-        wprintln(wss2.str());
+        wprintln(L"Test 3 (Surrogate Pairs): Passed");
     }
     // Test Case 4: Empty string
     {
@@ -102,12 +88,10 @@ int main() {
         assert(ws_converted.empty());
         assert(us_empty.empty());
         assert_eq(EXPECTED, wswidth(ws_empty));
-        std::wstringstream wss2; wss2 << L"Test 4 (Empty String): Passed";
-        wprintln(wss2.str());
+        wprintln(L"Test 4 (Empty String): Passed");
     }
 
-    std::wstringstream wss; wss << "All tests completed successfully!";
-    wprintln(wss.str());
+    wprintln(L"All tests completed successfully!");
 
     return 0;
 }
