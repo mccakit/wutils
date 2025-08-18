@@ -404,11 +404,11 @@ int wutils::uswidth(const std::u16string_view u16s) {
 }
 
 #ifdef _WIN32
-void wprint(const std::wstring_view ws) {
+void wutils::wprint(const std::wstring_view ws) {
     WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
 }
 
-void wprintln(const std::wstring_view ws) {
+void wutils::wprintln(const std::wstring_view ws) {
     HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
     WriteConsoleW(console, ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
 
