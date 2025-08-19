@@ -3,6 +3,7 @@
 #include <wchar.h>
 #include <uchar.h>
 #include <string>
+#include <string_view>
 #include <iostream>
 #include <ranges>
 
