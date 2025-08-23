@@ -60,7 +60,7 @@ inline std::wstring ws(const ustring_view us) {
 #else // General, standard-compliant implementation
 inline ustring us(std::wstring_view ws) {
     return ws | std::ranges::views::transform([](wchar_t wc) {
-        return static_cast<char32_t>(wc);
+        return static_cast<uchar_t>(wc);
     }) | std::ranges::to<ustring>();
 }
 
