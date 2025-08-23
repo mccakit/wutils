@@ -68,6 +68,7 @@
 #include <wchar.h>
 #include <uchar.h>
 #include <string>
+#include <string_view>
 #include <stdint.h>
 
 #ifdef _WIN32
@@ -75,6 +76,8 @@
 #endif
 
 #include "wutils.hpp"
+
+namespace detail {
 
 struct interval {
   char32_t first;
@@ -201,24 +204,9 @@ int mk_wcwidth(char32_t ucs)
     return 0;
 
   /* if we arrive here, ucs is not a combining or C0/C1 control character */
-
-  // This implementation is WRONG! It doesn't recognize double-width characters such as emojis properly
-  // return 1 + 
-  //   (ucs >= 0x1100 &&
-  //    (ucs <= 0x115f ||                    /* Hangul Jamo init. consonants */
-  //     ucs == 0x2329 || ucs == 0x232a ||
-  //     (ucs >= 0x2e80 && ucs <= 0xa4cf &&
-  //      ucs != 0x303f) ||                  /* CJK ... Yi */
-  //     (ucs >= 0xac00 && ucs <= 0xd7a3) || /* Hangul Syllables */
-  //     (ucs >= 0xf900 && ucs <= 0xfaff) || /* CJK Compatibility Ideographs */
-  //     (ucs >= 0xfe10 && ucs <= 0xfe19) || /* Vertical forms */
-  //     (ucs >= 0xfe30 && ucs <= 0xfe6f) || /* CJK Compatibility Forms */
-  //     (ucs >= 0xff00 && ucs <= 0xff60) || /* Fullwidth Forms */
-  //     (ucs >= 0xffe0 && ucs <= 0xffe6) ||
-  //     (ucs >= 0x20000 && ucs <= 0x2fffd) ||
-  //     (ucs >= 0x30000 && ucs <= 0x3fffd)));
   
-  // Fixed version
+  // EDIT: Add emoji and symbol ranges
+  // TODO: work out emoji modifier sequences
   return 1 + 
     ((ucs >= 0x1100 && ucs <= 0x115f) ||  /* Hangul Jamo init. consonants */
       ucs == 0x2329 || ucs == 0x232a ||
@@ -348,59 +336,20 @@ int mk_wcswidth_cjk(const char32_t *pwcs, size_t n)
   return width;
 }
 
-// UTF-16 to UTF-32 conversion function
-// Combines UTF-16 surrogate pairs, where present, into a single UTF-32 codepoint
-std::u32string u32_from_u16(const std::u16string_view u16s) {
-
-    if (u16s.empty()) {
-        return std::u32string();
-    }
-
-
-    size_t n = u16s.size();
-    size_t i = 0;
-    std::u32string u32s;
-    u32s.reserve(n);
-
-    // Iterate through the UTF-16 code units.
-    while (i < n) {
-        char16_t u16_ch = u16s[i];
-
-        // Check for a high surrogate pair.
-        // High surrogates are in the range 0xD800 to 0xDBFF.
-        if (u16_ch >= 0xD800 && u16_ch <= 0xDBFF) {
-            // Check if there is a next character and if it's a valid low surrogate.
-            // Low surrogates are in the range 0xDC00 to 0xDFFF.
-            if (i + 1 < n) {
-                char16_t u16_next_ch = u16s[i + 1];
-                if (u16_next_ch >= 0xDC00 && u16_next_ch <= 0xDFFF) {
-                    // We have a valid surrogate pair.
-                    // Reconstruct the 32-bit code point using the formula:
-                    // U' = 0x10000 + (H - 0xD800) * 0x400 + (L - 0xDC00)
-                    char32_t code_point = 0x10000 + ((u16_ch - 0xD800) << 10) + (u16_next_ch - 0xDC00);
-                    u32s.append(1, code_point);
-                    i += 2; // Move past both surrogate characters.
-                    continue; // Continue to the next iteration of the loop.
-                }
-            }
-        }
-        
-        // If it's not a valid surrogate pair, treat the character as a single
-        // UTF-16 code unit and add it to the UTF-32 string. This handles
-        // BMP characters (U+0000 to U+FFFF) and invalid lone surrogates.
-        u32s.append(1, u16_ch);
-        i++; // Move to the next character.
-    }
-    return u32s;
-}
+} // namespace detail
 
 int wutils::uswidth(const std::u32string_view u32s) {
-    return mk_wcswidth(u32s.data(), u32s.size());
+    return detail::mk_wcswidth(u32s.data(), u32s.size());
 }
 
 int wutils::uswidth(const std::u16string_view u16s) {
-    std::u32string u32s = u32_from_u16(u16s);
-    return mk_wcswidth(u32s.data(), u32s.size());
+    std::u32string u32s = wutils::u32(u16s);
+    return detail::mk_wcswidth(u32s.data(), u32s.size());
+}
+
+int wutils::uswidth(const std::u8string_view u8s) {
+  std::u32string u32s = wutils::u32(u8s);
+  return detail::mk_wcswidth(u32s.data(), u32s.size());
 }
 
 #ifdef _WIN32
@@ -415,3 +364,223 @@ void wutils::wprintln(const std::wstring_view ws) {
     WriteConsoleW(console, L"\n", 1, NULL, NULL);
 }
 #endif
+
+
+/* UTF conversion */ 
+
+// UTF-16 to UTF-8 conversion
+std::u8string wutils::u8(const std::u16string_view u16s) {
+    std::u8string result;
+    result.reserve(u16s.size() * 3); // Rough estimate for space needed
+    
+    for (size_t i = 0; i < u16s.size(); ++i) {
+        char32_t codepoint;
+        
+        // Check for surrogate pair
+        if (i + 1 < u16s.size() && 
+            (u16s[i] >= 0xD800 && u16s[i] <= 0xDBFF) && 
+            (u16s[i+1] >= 0xDC00 && u16s[i+1] <= 0xDFFF)) {
+            // Decode surrogate pair
+            codepoint = 0x10000 + (((u16s[i] - 0xD800) << 10) | (u16s[i+1] - 0xDC00));
+            ++i; // Skip the low surrogate on the next iteration
+        } else {
+            codepoint = u16s[i];
+        }
+        
+        // Encode to UTF-8
+        if (codepoint <= 0x7F) {
+            // 1-byte encoding
+            result.push_back(static_cast<char8_t>(codepoint));
+        } else if (codepoint <= 0x7FF) {
+            // 2-byte encoding
+            result.push_back(static_cast<char8_t>(0xC0 | (codepoint >> 6)));
+            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        } else if (codepoint <= 0xFFFF) {
+            // 3-byte encoding
+            result.push_back(static_cast<char8_t>(0xE0 | (codepoint >> 12)));
+            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
+            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        } else {
+            // 4-byte encoding
+            result.push_back(static_cast<char8_t>(0xF0 | (codepoint >> 18)));
+            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 12) & 0x3F)));
+            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
+            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        }
+    }
+    return result;
+}
+
+// UTF-32 to UTF-8 conversion
+std::u8string wutils::u8(const std::u32string_view u32s) {
+    std::u8string result;
+    result.reserve(u32s.size() * 4); // Worst case scenario
+    
+    for (char32_t codepoint : u32s) {
+        if (codepoint <= 0x7F) {
+            // 1-byte encoding
+            result.push_back(static_cast<char8_t>(codepoint));
+        } else if (codepoint <= 0x7FF) {
+            // 2-byte encoding
+            result.push_back(static_cast<char8_t>(0xC0 | (codepoint >> 6)));
+            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        } else if (codepoint <= 0xFFFF) {
+            // 3-byte encoding
+            result.push_back(static_cast<char8_t>(0xE0 | (codepoint >> 12)));
+            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
+            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        } else if (codepoint <= 0x10FFFF) {
+            // 4-byte encoding
+            result.push_back(static_cast<char8_t>(0xF0 | (codepoint >> 18)));
+            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 12) & 0x3F)));
+            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
+            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        }
+        // Skip invalid code points
+    }
+    return result;
+}
+
+// UTF-8 to UTF-16 conversion
+std::u16string wutils::u16(const std::u8string_view u8s) {
+    std::u16string result;
+    result.reserve(u8s.size()); // Initial capacity estimation
+    
+    for (size_t i = 0; i < u8s.size(); ) {
+        char32_t codepoint;
+        
+        if ((u8s[i] & 0x80) == 0) {
+            // 1-byte encoding
+            codepoint = u8s[i];
+            i += 1;
+        } else if ((u8s[i] & 0xE0) == 0xC0 && i + 1 < u8s.size()) {
+            // 2-byte encoding
+            codepoint = ((u8s[i] & 0x1F) << 6) | (u8s[i+1] & 0x3F);
+            i += 2;
+        } else if ((u8s[i] & 0xF0) == 0xE0 && i + 2 < u8s.size()) {
+            // 3-byte encoding
+            codepoint = ((u8s[i] & 0x0F) << 12) | 
+                       ((u8s[i+1] & 0x3F) << 6) | 
+                        (u8s[i+2] & 0x3F);
+            i += 3;
+        } else if ((u8s[i] & 0xF8) == 0xF0 && i + 3 < u8s.size()) {
+            // 4-byte encoding
+            codepoint = ((u8s[i] & 0x07) << 18) | 
+                       ((u8s[i+1] & 0x3F) << 12) | 
+                       ((u8s[i+2] & 0x3F) << 6) | 
+                        (u8s[i+3] & 0x3F);
+            i += 4;
+        } else {
+            // Invalid UTF-8 sequence, skip this byte
+            ++i;
+            continue;
+        }
+        
+        // Convert to UTF-16
+        if (codepoint <= 0xFFFF) {
+            result.push_back(static_cast<char16_t>(codepoint));
+        } else if (codepoint <= 0x10FFFF) {
+            // Create surrogate pair
+            char16_t high = static_cast<char16_t>(0xD800) + static_cast<char16_t>((codepoint - 0x10000) >> 10);
+            char16_t low = static_cast<char16_t>(0xDC00) + static_cast<char16_t>((codepoint - 0x10000) & 0x3FF);
+            result.push_back(high);
+            result.push_back(low);
+        }
+        // Skip invalid code points
+    }
+    return result;
+}
+
+// UTF-32 to UTF-16 conversion
+std::u16string wutils::u16(const std::u32string_view u32s) {
+    std::u16string result;
+    result.reserve(u32s.size() * 2); // Some code points might need surrogate pairs
+    
+    for (char32_t codepoint : u32s) {
+        if (codepoint <= 0xFFFF) {
+            // BMP character (no surrogate needed)
+            result.push_back(static_cast<char16_t>(codepoint));
+        } else if (codepoint <= 0x10FFFF) {
+            // Create surrogate pair
+            char16_t high = static_cast<char16_t>(0xD800) + static_cast<char16_t>((codepoint - 0x10000) >> 10);
+            char16_t low = static_cast<char16_t>(0xDC00) + static_cast<char16_t>((codepoint - 0x10000) & 0x3FF);
+            result.push_back(high);
+            result.push_back(low);
+        }
+        // Skip invalid code points
+    }
+    return result;
+}
+
+// UTF-8 to UTF-32 conversion
+std::u32string wutils::u32(const std::u8string_view u8s) {
+    std::u32string result;
+    result.reserve(u8s.size()); // Initial capacity estimation
+    
+    for (size_t i = 0; i < u8s.size(); ) {
+        char32_t codepoint;
+        
+        if ((u8s[i] & 0x80) == 0) {
+            // 1-byte encoding
+            codepoint = u8s[i];
+            i += 1;
+        } else if ((u8s[i] & 0xE0) == 0xC0 && i + 1 < u8s.size()) {
+            // 2-byte encoding
+            codepoint = ((u8s[i] & 0x1F) << 6) | (u8s[i+1] & 0x3F);
+            i += 2;
+        } else if ((u8s[i] & 0xF0) == 0xE0 && i + 2 < u8s.size()) {
+            // 3-byte encoding
+            codepoint = ((u8s[i] & 0x0F) << 12) | 
+                       ((u8s[i+1] & 0x3F) << 6) | 
+                        (u8s[i+2] & 0x3F);
+            i += 3;
+        } else if ((u8s[i] & 0xF8) == 0xF0 && i + 3 < u8s.size()) {
+            // 4-byte encoding
+            codepoint = ((u8s[i] & 0x07) << 18) | 
+                       ((u8s[i+1] & 0x3F) << 12) | 
+                       ((u8s[i+2] & 0x3F) << 6) | 
+                        (u8s[i+3] & 0x3F);
+            i += 4;
+        } else {
+            // Invalid UTF-8 sequence, skip this byte
+            ++i;
+            continue;
+        }
+        
+        if (codepoint <= 0x10FFFF) {
+            result.push_back(codepoint);
+        }
+        // Skip invalid code points
+    }
+    return result;
+}
+
+// UTF-16 to UTF-32 conversion
+std::u32string wutils::u32(const std::u16string_view u16s) {
+    std::u32string result;
+    result.reserve(u16s.size()); // Initial capacity
+    
+    for (size_t i = 0; i < u16s.size(); ++i) {
+        char32_t codepoint;
+        
+        // Check for surrogate pair
+        if (i + 1 < u16s.size() && 
+            (u16s[i] >= 0xD800 && u16s[i] <= 0xDBFF) && 
+            (u16s[i+1] >= 0xDC00 && u16s[i+1] <= 0xDFFF)) {
+            // Decode surrogate pair
+            codepoint = 0x10000 + (((u16s[i] - 0xD800) << 10) | (u16s[i+1] - 0xDC00));
+            ++i; // Skip the low surrogate on the next iteration
+        } else if (u16s[i] >= 0xD800 && u16s[i] <= 0xDFFF) {
+            // Unpaired surrogate - skip
+            continue;
+        } else {
+            codepoint = u16s[i];
+        }
+        
+        if (codepoint <= 0x10FFFF) {
+            result.push_back(codepoint);
+        }
+        // Skip invalid code points
+    }
+    return result;
+}
