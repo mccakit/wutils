@@ -37,6 +37,8 @@ static_assert(
     "Exactly one wchar_t type must match"
 );
 
+// Assume char is char8_t
+static_assert(sizeof(char) == sizeof(char8_t), "Invalid char type assumption");
 
 // Determine the underlying type for ustring at compile-time
 
@@ -57,6 +59,10 @@ inline ustring us(const std::wstring_view ws) {
 inline std::wstring ws(const ustring_view us) {
     return std::wstring(std::from_range, us);
 }
+
+inline std::u8string us(const std::string_view s) {
+    return std::u8string(std::from_range, s);
+}
 #else // General, standard-compliant implementation
 inline ustring us(std::wstring_view ws) {
     return ws | std::ranges::views::transform([](wchar_t wc) {
@@ -68,7 +74,13 @@ inline std::wstring ws(const ustring_view us) {
     return us | std::ranges::views::transform([](uchar_t uc) {
         return static_cast<wchar_t>(uc);
     }) | std::ranges::to<std::wstring>();
-} 
+}
+
+inline std::u8string us(const std::string_view s) {
+    return s | std::ranges::views::transform([](char c) {
+        return static_cast<char8_t>(c);
+    }) | std::ranges::to<std::u8string>();
+}
 #endif
 
 inline int wswidth(const std::wstring_view ws) {
