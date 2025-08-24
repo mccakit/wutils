@@ -1,6 +1,6 @@
 # wutils
 
-A best-effort C++ library for converting platform-dependent wide strings (`wchar_t`) to fixed-length Unicode types (`char16_t`, `char32_t`).
+A best-effort C++ library for converting platform-dependent wide strings (`wchar_t`) to fixed-length Unicode types (`char16_t`, `char32_t`), as well as a platform-independent `wswidth` function (tested to be working and reliable on Windows and Linux systems).
 
 -----
 
