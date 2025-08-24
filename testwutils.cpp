@@ -55,11 +55,7 @@ int main() {
     // Test Case 5: Advanced Emoji Sequence
     {
         // This single emoji (👩🏼‍🚀) is a set of 4 codepoints [128105] [127996] [8205] [128640]
-        constexpr int EXPECTED = 2;
-        std::wstring ws = L"👩🏼‍🚀";
-        std::wstringstream wss; wss << L"Length of " << ws << L": " << wutils::wswidth(ws);
-        wutils::wprintln(wss.str());
-        ASSERT_EQ(EXPECTED, wutils::wswidth(ws));
+        test_case(L"👩🏼‍🚀", 2);
         wutils::wprintln(L"Test 5 (Advanced Emoji Sequence): Passed");
     }
     // Test Case 6: Characters outside the Basic Multilingual Plane (Plane 0)
