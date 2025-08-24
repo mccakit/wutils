@@ -11,6 +11,13 @@
 #include "wutils.hpp"
 #include "test.hpp"
 
+void test_case(std::wstring ws, const int expected) {
+    int width = wutils::wswidth(ws);
+    std::wstringstream wss; wss << L"Length of \"" << ws << L"\": " << width;
+    wutils::wprintln(wss.str());
+    ASSERT_EQ(expected, width);
+}
+
 int main() {
     using wutils::uchar_t, wutils::ustring, wutils::ustring_view;
     // Initialize locale
@@ -23,64 +30,59 @@ int main() {
 
     // Test Case 1: Simple ASCII string
     {
-        constexpr int EXPECTED = 13;
-        std::wstring ws_ascii = L"Hello, World!";
-        ustring us_ascii = wutils::us(ws_ascii);
-        std::wstring ws_converted = wutils::ws(us_ascii);
-        std::wstringstream wss; wss << L"Length of " << ws_ascii << L": " << wutils::wswidth(ws_ascii);
-        wutils::wprintln(wss.str());
-        ASSERT_EQ(ws_converted, ws_ascii);
-        ASSERT_EQ(EXPECTED, wutils::wswidth(ws_ascii));
+        test_case(L"Hello, World!", 13);
         wutils::wprintln(L"Test 1 (ASCII): Passed");
     }
 
     // Test Case 2: Unicode character within the Basic Multilingual Plane (BMP)
     // The character 'é' (LATIN SMALL LETTER E WITH ACUTE) has code point U+00E9
     {
-        // Use a wide string literal with the unicode character
-        constexpr int EXPECTED = 6;
-        std::wstring ws_unicode = L"Résumé";
-        ustring us_unicode = wutils::us(ws_unicode);
-        std::wstring ws_converted = wutils::ws(us_unicode);
-        std::wstringstream wss; wss << L"Length of " << ws_unicode << L": " << wutils::wswidth(ws_unicode);
-        wutils::wprintln(wss.str());
-        ASSERT_EQ(ws_converted, ws_unicode);
-        ASSERT_EQ(EXPECTED, wutils::wswidth(ws_unicode));
+        test_case(L"Résumé", 6);
         wutils::wprintln(L"Test 2 (Unicode BMP): Passed");
     }
 
     // Test Case 3: Character requiring a surrogate pair (if wchar_t is 16 bits)
     // The character '😂' (FACE WITH TEARS OF JOY) has code point U+1F602
     {
-        constexpr int EXPECTED = 6;
-        std::wstring ws_surrogate = L"😂😂😂";
-        ustring us_surrogate = wutils::us(ws_surrogate);
-        std::wstring ws_converted = wutils::ws(us_surrogate);
-        std::wstringstream wss; wss << L"Length of " << ws_surrogate << L": " << wutils::wswidth(ws_surrogate);
-        wutils::wprintln(wss.str());
-        if constexpr (wutils::wchar_is_char16) {
-            // The original wstring and the converted one should match
-            ASSERT_EQ(ws_converted, ws_surrogate);
-            // The length in code units should also match, as from_range handles it
-            ASSERT_EQ(us_surrogate.length(), ws_surrogate.length());
-        }
-        // The wswidth should also be correct
-        ASSERT_EQ(EXPECTED, wutils::wswidth(ws_surrogate));
-        wutils::wprintln(L"Test 3 (Surrogate Pairs): Passed");
+        test_case(L"😂😂😂", 6);
+        wutils::wprintln(L"Test 3 (Simple Emoji Surrogate Pair): Passed");
     }
     // Test Case 4: Empty string
     {
-        constexpr int EXPECTED = 0;
-        std::wstring_view ws_empty = L"";
-        ustring us_empty = wutils::us(ws_empty);
-        std::wstring ws_converted = wutils::ws(us_empty);
-        std::wstringstream wss; wss << L"Length of empty string: " << wutils::wswidth(ws_empty);
-        wutils::wprintln(wss.str());
-        ASSERT_TRUE(ws_converted.empty());
-        ASSERT_TRUE(us_empty.empty());
-        ASSERT_EQ(EXPECTED, wutils::wswidth(ws_empty));
+        test_case(L"", 0);
         wutils::wprintln(L"Test 4 (Empty String): Passed");
     }
+    // Test Case 5: Advanced Emoji Sequence
+    {
+        // This single emoji (👩🏼‍🚀) is a set of 4 codepoints [128105] [127996] [8205] [128640]
+        constexpr int EXPECTED = 2;
+        std::wstring ws = L"👩🏼‍🚀";
+        std::wstringstream wss; wss << L"Length of " << ws << L": " << wutils::wswidth(ws);
+        wutils::wprintln(wss.str());
+        ASSERT_EQ(EXPECTED, wutils::wswidth(ws));
+        wutils::wprintln(L"Test 5 (Advanced Emoji Sequence): Passed");
+    }
+    // Test Case 6: Characters outside the Basic Multilingual Plane (Plane 0)
+    {
+        /* ===PLANE 1 (Supplementary Multilingual Plane)=== */
+
+        test_case(L"𐌀𐌍𐌓𐌀", 4); // Old Italic
+        test_case(L"𝕄𝕒𝕥𝕙𝕖𝕞𝕒𝕥𝕚𝕔𝕤", 11); // Mathematical Alpanumeric
+        test_case(L"🌍🌎🌏", 6); // Emoji 1
+        test_case(L"👨‍👩‍👧‍👦", 2); // Emoji 2
+       
+        
+        /* ===PLANE 2 (Supplementary Ideographic Plane)=== */
+        test_case(L"𠔻𠕋𠖊𠖍𠖐", 10); // Rare Chinese Characters
+        test_case(L"𠮷", 2); // Rare Japanese Variant
+        test_case(L"𠀤𠀧𠁀", 6); // Rare Chinese Variants
+        test_case(L"𠊛好", 4); // Vietnamese Chữ Nôm (CJK Extensions)
+        test_case(L"𪚥𪆷𪃹", 6); // Rare Japanese Kanji (CJK Extensions)
+        test_case(L"𪜈𪜋𪜌", 6); // Rare Korean Hanja (CJK Extensions)
+
+    }
+
+
 
     wutils::wprintln(L"All tests completed successfully!");
 

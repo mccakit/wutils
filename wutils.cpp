@@ -104,7 +104,6 @@ static bool bisearch(char32_t ucs, const struct interval *table, char32_t max) {
   return false;
 }
 
-
 /* The following two functions define the column width of an ISO 10646
  * character as follows:
  *
@@ -189,7 +188,10 @@ int mk_wcwidth(char32_t ucs)
     { 0x10A38, 0x10A3A }, { 0x10A3F, 0x10A3F }, { 0x1D167, 0x1D169 },
     { 0x1D173, 0x1D182 }, { 0x1D185, 0x1D18B }, { 0x1D1AA, 0x1D1AD },
     { 0x1D242, 0x1D244 }, { 0xE0001, 0xE0001 }, { 0xE0020, 0xE007F },
-    { 0xE0100, 0xE01EF }
+    { 0xE0100, 0xE01EF },
+    /* Add emoji modifiers */
+    { 0x1F3FB, 0x1F3FF }, /* Emoji skin tone modifiers */
+    { 0x200D, 0x200D }    /* Zero Width Joiner - explicitly listed for clarity */
   };
 
   /* test for 8-bit control characters */
@@ -205,8 +207,6 @@ int mk_wcwidth(char32_t ucs)
 
   /* if we arrive here, ucs is not a combining or C0/C1 control character */
   
-  // EDIT: Add emoji and symbol ranges
-  // TODO: work out emoji modifier sequences
   return 1 + 
     ((ucs >= 0x1100 && ucs <= 0x115f) ||  /* Hangul Jamo init. consonants */
       ucs == 0x2329 || ucs == 0x232a ||
@@ -220,28 +220,71 @@ int mk_wcwidth(char32_t ucs)
       (ucs >= 0xffe0 && ucs <= 0xffe6) ||
       (ucs >= 0x20000 && ucs <= 0x2fffd) ||
       (ucs >= 0x30000 && ucs <= 0x3fffd) ||
-      /* Add emoji and symbol ranges */
+      /* Emoji and symbol ranges (updated for latest Unicode) */
       (ucs >= 0x1F000 && ucs <= 0x1F9FF) || /* Emoji and various symbols */
-      (ucs >= 0x1F300 && ucs <= 0x1F5FF) || /* Misc Symbols and Pictographs */
-      (ucs >= 0x1F600 && ucs <= 0x1F64F) || /* Emoticons */
-      (ucs >= 0x1F680 && ucs <= 0x1F6FF) || /* Transport and Map Symbols */
-      (ucs >= 0x1F700 && ucs <= 0x1F77F) || /* Alchemical Symbols */
-      (ucs >= 0x1F780 && ucs <= 0x1F7FF) || /* Geometric Shapes Extended */
-      (ucs >= 0x1F800 && ucs <= 0x1F8FF) || /* Supplemental Arrows-C */
-      (ucs >= 0x1F900 && ucs <= 0x1F9FF));  /* Supplemental Symbols and Pictographs */
+      (ucs >= 0x1FA00 && ucs <= 0x1FA6F) || /* Chess symbols and others */
+      (ucs >= 0x1FA70 && ucs <= 0x1FAFF));  /* Symbols and Pictographs Extended-A */
 }
 
-
+/* This function properly handles complex emoji sequences */
 int mk_wcswidth(const char32_t *pwcs, size_t n)
 {
-  int w, width = 0;
-
-  for (;*pwcs && n-- > 0; pwcs++)
-    if ((w = mk_wcwidth(*pwcs)) < 0)
+  int width = 0;
+  const char32_t *p = pwcs;
+  size_t remaining = n;
+  
+  while (*p && remaining > 0) {
+    char32_t base_char = *p;
+    int char_width = mk_wcwidth(base_char);
+    
+    if (char_width < 0)
       return -1;
-    else
-      width += w;
-
+      
+    // Check if this is the start of an emoji sequence
+    bool is_emoji = (base_char >= 0x1F000 && base_char <= 0x1FAFF) || 
+                    (base_char >= 0x2600 && base_char <= 0x27BF);
+    
+    if (is_emoji) {
+      // Add the base emoji width
+      width += char_width;
+      p++;
+      remaining--;
+      
+      // Skip any subsequent ZWJ sequences, skin tone modifiers, etc.
+      while (remaining > 0 && *p && 
+            (((*p >= 0x1F3FB && *p <= 0x1F3FF) || // Skin tone modifiers
+             (*p == 0x200D) ||                     // Zero Width Joiner
+             (*p == 0xFE0F) ||                     // Variation Selector-16
+             (*p >= 0xE0020 && *p <= 0xE007F)))) { // Tag sequences
+        
+        // If we hit a ZWJ followed by another emoji, don't count the joined emoji's width
+        if (*p == 0x200D && remaining > 1 && *(p+1)) {
+          p++; // Skip the ZWJ
+          remaining--;
+          
+          // Skip the next emoji too (but don't add its width)
+          if (remaining > 0 && *p) {
+            // Check if it's an emoji
+            if ((*p >= 0x1F000 && *p <= 0x1FAFF) || 
+                (*p >= 0x2600 && *p <= 0x27BF)) {
+              p++;
+              remaining--;
+            }
+          }
+        } else {
+          // Skip other combining characters
+          p++;
+          remaining--;
+        }
+      }
+    } else {
+      // Regular character
+      width += char_width;
+      p++;
+      remaining--;
+    }
+  }
+  
   return width;
 }
 
