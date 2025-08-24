@@ -66,8 +66,8 @@ int main() {
         test_case(L"𝕄𝕒𝕥𝕙𝕖𝕞𝕒𝕥𝕚𝕔𝕤", 11); // Mathematical Alpanumeric
         test_case(L"🌍🌎🌏", 6); // Emoji 1
         test_case(L"👨‍👩‍👧‍👦", 2); // Emoji 2
+        wutils::wprintln(L"Test 6.1 (Supplementary Multilingual Plane): Passed");
        
-        
         /* ===PLANE 2 (Supplementary Ideographic Plane)=== */
         test_case(L"𠔻𠕋𠖊𠖍𠖐", 10); // Rare Chinese Characters
         test_case(L"𠮷", 2); // Rare Japanese Variant
@@ -75,10 +75,9 @@ int main() {
         test_case(L"𠊛好", 4); // Vietnamese Chữ Nôm (CJK Extensions)
         test_case(L"𪚥𪆷𪃹", 6); // Rare Japanese Kanji (CJK Extensions)
         test_case(L"𪜈𪜋𪜌", 6); // Rare Korean Hanja (CJK Extensions)
+        wutils::wprintln(L"Test 6.2 (Supplementary Ideographic Plane): Passed");
 
     }
-
-
 
     wutils::wprintln(L"All tests completed successfully!");
 
