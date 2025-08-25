@@ -70,6 +70,7 @@
 #include <string>
 #include <string_view>
 #include <stdint.h>
+#include <expected>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -295,13 +296,23 @@ int wutils::uswidth(const std::u32string_view u32s) {
 }
 
 int wutils::uswidth(const std::u16string_view u16s) {
-    std::u32string u32s = wutils::u32(u16s);
-    return detail::mk_wcswidth(u32s.data(), u32s.size());
+    wutils::ConversionResult<std::u32string> u32s = wutils::u32(u16s);
+    if (!u32s) {
+        // Conversion failed, but compute anyways
+        std::u32string_view failed_seq = u32s.error().failed_sequence;
+        return detail::mk_wcswidth(failed_seq.data(), failed_seq.size());
+    }
+    return detail::mk_wcswidth(u32s->data(), u32s->size());
 }
 
 int wutils::uswidth(const std::u8string_view u8s) {
-  std::u32string u32s = wutils::u32(u8s);
-  return detail::mk_wcswidth(u32s.data(), u32s.size());
+    wutils::ConversionResult<std::u32string> u32s = wutils::u32(u8s);
+    if (!u32s) {
+        // Conversion failed, but compute anyways
+        std::u32string_view failed_seq = u32s.error().failed_sequence;
+        return detail::mk_wcswidth(failed_seq.data(), failed_seq.size());
+    }
+    return detail::mk_wcswidth(u32s->data(), u32s->size());
 }
 
 #ifdef _WIN32
@@ -321,7 +332,8 @@ void wutils::wprintln(const std::wstring_view ws) {
 /* UTF conversion */ 
 
 // UTF-16 to UTF-8 conversion
-std::u8string wutils::u8(const std::u16string_view u16s) {
+wutils::ConversionResult<std::u8string> wutils::u8(const std::u16string_view u16s) {
+    bool is_valid = true;
     std::u8string result;
     result.reserve(u16s.size() * 3); // Rough estimate for space needed
     
@@ -335,6 +347,10 @@ std::u8string wutils::u8(const std::u16string_view u16s) {
             // Decode surrogate pair
             codepoint = 0x10000 + (((u16s[i] - 0xD800) << 10) | (u16s[i+1] - 0xDC00));
             ++i; // Skip the low surrogate on the next iteration
+        } else if ((u16s[i] >= 0xD800 && u16s[i] <= 0xDBFF) || (u16s[i] >= 0xDC00 && u16s[i] <= 0xDFFF)) {
+            // Invalid surrogate pair, mark invalid and skip
+            is_valid = false;
+            continue;
         } else {
             codepoint = u16s[i];
         }
@@ -360,11 +376,16 @@ std::u8string wutils::u8(const std::u16string_view u16s) {
             result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
         }
     }
-    return result;
+    if (is_valid) {
+        return result;
+    } else {
+        return std::unexpected(ConversionFailure<std::u8string>{result});
+    }
 }
 
 // UTF-32 to UTF-8 conversion
-std::u8string wutils::u8(const std::u32string_view u32s) {
+wutils::ConversionResult<std::u8string> wutils::u8(const std::u32string_view u32s) {
+    bool is_valid = true;
     std::u8string result;
     result.reserve(u32s.size() * 4); // Worst case scenario
     
@@ -387,14 +408,22 @@ std::u8string wutils::u8(const std::u32string_view u32s) {
             result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 12) & 0x3F)));
             result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
             result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        } else {
+            // Invalid codepoint, mark invalid and skip
+            is_valid = false;
+            continue;
         }
-        // Skip invalid code points
     }
-    return result;
+    if (is_valid) {
+        return result;
+    } else {
+        return std::unexpected(ConversionFailure<std::u8string>{result});
+    }
 }
 
 // UTF-8 to UTF-16 conversion
-std::u16string wutils::u16(const std::u8string_view u8s) {
+wutils::ConversionResult<std::u16string> wutils::u16(const std::u8string_view u8s) {
+    bool is_valid = true;
     std::u16string result;
     result.reserve(u8s.size()); // Initial capacity estimation
     
@@ -423,8 +452,8 @@ std::u16string wutils::u16(const std::u8string_view u8s) {
                         (u8s[i+3] & 0x3F);
             i += 4;
         } else {
-            // Invalid UTF-8 sequence, skip this byte
-            ++i;
+            // Invalid sequence, mark invalid and skip
+            is_valid = false;
             continue;
         }
         
@@ -437,14 +466,22 @@ std::u16string wutils::u16(const std::u8string_view u8s) {
             char16_t low = static_cast<char16_t>(0xDC00) + static_cast<char16_t>((codepoint - 0x10000) & 0x3FF);
             result.push_back(high);
             result.push_back(low);
+        } else {
+            // Invalid Codepoint, mark invalid and skip
+            is_valid = false;
+            continue;
         }
-        // Skip invalid code points
     }
-    return result;
+    if (is_valid) {
+        return result;
+    } else {
+        return std::unexpected(ConversionFailure<std::u16string>{result});
+    }
 }
 
 // UTF-32 to UTF-16 conversion
-std::u16string wutils::u16(const std::u32string_view u32s) {
+wutils::ConversionResult<std::u16string> wutils::u16(const std::u32string_view u32s) {
+    bool is_valid = true;
     std::u16string result;
     result.reserve(u32s.size() * 2); // Some code points might need surrogate pairs
     
@@ -458,14 +495,22 @@ std::u16string wutils::u16(const std::u32string_view u32s) {
             char16_t low = static_cast<char16_t>(0xDC00) + static_cast<char16_t>((codepoint - 0x10000) & 0x3FF);
             result.push_back(high);
             result.push_back(low);
+        } else {
+            // Invalid codepoint, mark invalid and skip
+            is_valid = false;
+            continue;
         }
-        // Skip invalid code points
     }
-    return result;
+    if (is_valid) {
+        return result;
+    } else {
+        return std::unexpected(ConversionFailure<std::u16string>{result});
+    }
 }
 
 // UTF-8 to UTF-32 conversion
-std::u32string wutils::u32(const std::u8string_view u8s) {
+wutils::ConversionResult<std::u32string> wutils::u32(const std::u8string_view u8s) {
+    bool is_valid = true;
     std::u32string result;
     result.reserve(u8s.size()); // Initial capacity estimation
     
@@ -494,21 +539,29 @@ std::u32string wutils::u32(const std::u8string_view u8s) {
                         (u8s[i+3] & 0x3F);
             i += 4;
         } else {
-            // Invalid UTF-8 sequence, skip this byte
-            ++i;
+            // Invalid sequence, mark invalid and skip
+            is_valid = false;
             continue;
         }
         
         if (codepoint <= 0x10FFFF) {
             result.push_back(codepoint);
+        } else {
+            // Invalid codepoint, mark invalid and skip
+            is_valid = false;
+            continue;
         }
-        // Skip invalid code points
     }
-    return result;
+    if (is_valid) {
+        return result;
+    } else {
+        return std::unexpected(ConversionFailure<std::u32string>{result});
+    }
 }
 
 // UTF-16 to UTF-32 conversion
-std::u32string wutils::u32(const std::u16string_view u16s) {
+wutils::ConversionResult<std::u32string> wutils::u32(const std::u16string_view u16s) {
+    bool is_valid = true;
     std::u32string result;
     result.reserve(u16s.size()); // Initial capacity
     
@@ -523,7 +576,8 @@ std::u32string wutils::u32(const std::u16string_view u16s) {
             codepoint = 0x10000 + (((u16s[i] - 0xD800) << 10) | (u16s[i+1] - 0xDC00));
             ++i; // Skip the low surrogate on the next iteration
         } else if (u16s[i] >= 0xD800 && u16s[i] <= 0xDFFF) {
-            // Unpaired surrogate - skip
+            // Unpaired surrogate, mark invalid and skip
+            is_valid = false;
             continue;
         } else {
             codepoint = u16s[i];
@@ -531,8 +585,15 @@ std::u32string wutils::u32(const std::u16string_view u16s) {
         
         if (codepoint <= 0x10FFFF) {
             result.push_back(codepoint);
+        } else {
+            // Invalid codepoint, mark invalid and skip
+            is_valid = false;
+            continue;
         }
-        // Skip invalid code points
     }
-    return result;
+    if (is_valid) {
+        return result;
+    } else {
+        return std::unexpected(ConversionFailure<std::u32string>{result});
+    }
 }

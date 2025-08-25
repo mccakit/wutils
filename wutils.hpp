@@ -6,18 +6,26 @@
 #include <string_view>
 #include <iostream>
 #include <ranges>
-
+#include <expected>
 
 namespace wutils {
 
-std::u8string u8(const std::u16string_view u16s);
-std::u8string u8(const std::u32string_view u32s);
+template<typename T>
+struct ConversionFailure {
+    T failed_sequence;
+};
 
-std::u16string u16(const std::u8string_view u8s);
-std::u16string u16(const std::u32string_view u32s);
+template<typename T>
+using ConversionResult = std::expected<T, ConversionFailure<T>>;
 
-std::u32string u32(const std::u8string_view u8s);
-std::u32string u32(const std::u16string_view u16s);
+ConversionResult<std::u8string> u8(const std::u16string_view u16s);
+ConversionResult<std::u8string> u8(const std::u32string_view u32s);
+
+ConversionResult<std::u16string> u16(const std::u8string_view u8s);
+ConversionResult<std::u16string> u16(const std::u32string_view u32s);
+
+ConversionResult<std::u32string> u32(const std::u8string_view u8s);
+ConversionResult<std::u32string> u32(const std::u16string_view u16s);
 
 int uswidth(const std::u8string_view u8s);
 int uswidth(const std::u16string_view u16s);
