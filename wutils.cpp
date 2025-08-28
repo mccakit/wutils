@@ -299,8 +299,8 @@ int wutils::uswidth(const std::u16string_view u16s) {
     wutils::ConversionResult<std::u32string> u32s = wutils::u32(u16s, wutils::ErrorPolicy::SkipInvalidValues);
     if (!u32s) {
         // Conversion failed, but compute anyways
-        std::u32string_view failed_seq = u32s.error().failed_sequence;
-        return detail::mk_wcswidth(failed_seq.data(), failed_seq.size());
+        std::u32string_view partial_skipped_seq = u32s.error().partial_result;
+        return detail::mk_wcswidth(partial_skipped_seq.data(), partial_skipped_seq.size());
     }
     return detail::mk_wcswidth(u32s->data(), u32s->size());
 }
@@ -309,8 +309,8 @@ int wutils::uswidth(const std::u8string_view u8s) {
     wutils::ConversionResult<std::u32string> u32s = wutils::u32(u8s, wutils::ErrorPolicy::SkipInvalidValues);
     if (!u32s) {
         // Conversion failed, but compute anyways
-        std::u32string_view failed_seq = u32s.error().failed_sequence;
-        return detail::mk_wcswidth(failed_seq.data(), failed_seq.size());
+        std::u32string_view partial_skipped_seq = u32s.error().partial_result;
+        return detail::mk_wcswidth(partial_skipped_seq.data(), partial_skipped_seq.size());
     }
     return detail::mk_wcswidth(u32s->data(), u32s->size());
 }

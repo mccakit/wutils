@@ -18,7 +18,9 @@ enum class ErrorPolicy {
 
 template<typename T>
 struct ConversionFailure {
-    T failed_sequence;
+    // Either the "best effort" result skipping invalid characters, 
+    // or the partially converted sequence up to the point of failure, depending on error policy
+    T partial_result; 
 };
 
 template<typename T>
