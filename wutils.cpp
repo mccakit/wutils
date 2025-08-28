@@ -296,7 +296,7 @@ int wutils::uswidth(const std::u32string_view u32s) {
 }
 
 int wutils::uswidth(const std::u16string_view u16s) {
-    wutils::ConversionResult<std::u32string> u32s = wutils::u32(u16s);
+    wutils::ConversionResult<std::u32string> u32s = wutils::u32(u16s, wutils::ErrorPolicy::SkipInvalidValues);
     if (!u32s) {
         // Conversion failed, but compute anyways
         std::u32string_view failed_seq = u32s.error().failed_sequence;
@@ -306,7 +306,7 @@ int wutils::uswidth(const std::u16string_view u16s) {
 }
 
 int wutils::uswidth(const std::u8string_view u8s) {
-    wutils::ConversionResult<std::u32string> u32s = wutils::u32(u8s);
+    wutils::ConversionResult<std::u32string> u32s = wutils::u32(u8s, wutils::ErrorPolicy::SkipInvalidValues);
     if (!u32s) {
         // Conversion failed, but compute anyways
         std::u32string_view failed_seq = u32s.error().failed_sequence;
@@ -332,13 +332,13 @@ void wutils::wprintln(const std::wstring_view ws) {
 /* UTF conversion */ 
 
 // UTF-16 to UTF-8 conversion
-wutils::ConversionResult<std::u8string> wutils::u8(const std::u16string_view u16s) {
+wutils::ConversionResult<std::u8string> wutils::u8(const std::u16string_view u16s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u8string result;
     result.reserve(u16s.size() * 3); // Rough estimate for space needed
     
     for (size_t i = 0; i < u16s.size(); ++i) {
-        char32_t codepoint;
+        char32_t codepoint = 0; // initialize to 0 to shut up "uninitialized variable" error due to SkipInvalidValues branch
         
         // Check for surrogate pair
         if (i + 1 < u16s.size() && 
@@ -348,9 +348,16 @@ wutils::ConversionResult<std::u8string> wutils::u8(const std::u16string_view u16
             codepoint = 0x10000 + (((u16s[i] - 0xD800) << 10) | (u16s[i+1] - 0xDC00));
             ++i; // Skip the low surrogate on the next iteration
         } else if ((u16s[i] >= 0xD800 && u16s[i] <= 0xDBFF) || (u16s[i] >= 0xDC00 && u16s[i] <= 0xDFFF)) {
-            // Invalid surrogate pair, mark invalid and skip
-            is_valid = false;
-            continue;
+
+            // Invalid surrogate pair
+            switch(errorPolicy) {
+                case ErrorPolicy::SkipInvalidValues:
+                    is_valid = false;
+                    continue;
+                case ErrorPolicy::StopOnFirstError:
+                    return std::unexpected(ConversionFailure<std::u8string>{result});
+            }
+
         } else {
             codepoint = u16s[i];
         }
@@ -384,7 +391,7 @@ wutils::ConversionResult<std::u8string> wutils::u8(const std::u16string_view u16
 }
 
 // UTF-32 to UTF-8 conversion
-wutils::ConversionResult<std::u8string> wutils::u8(const std::u32string_view u32s) {
+wutils::ConversionResult<std::u8string> wutils::u8(const std::u32string_view u32s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u8string result;
     result.reserve(u32s.size() * 4); // Worst case scenario
@@ -409,9 +416,14 @@ wutils::ConversionResult<std::u8string> wutils::u8(const std::u32string_view u32
             result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
             result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
         } else {
-            // Invalid codepoint, mark invalid and skip
-            is_valid = false;
-            continue;
+            // Invalid codepoint
+            switch(errorPolicy) {
+                case ErrorPolicy::SkipInvalidValues:
+                    is_valid = false;
+                    continue;
+                case ErrorPolicy::StopOnFirstError:
+                    return std::unexpected(ConversionFailure<std::u8string>{result});
+            }
         }
     }
     if (is_valid) {
@@ -422,13 +434,13 @@ wutils::ConversionResult<std::u8string> wutils::u8(const std::u32string_view u32
 }
 
 // UTF-8 to UTF-16 conversion
-wutils::ConversionResult<std::u16string> wutils::u16(const std::u8string_view u8s) {
+wutils::ConversionResult<std::u16string> wutils::u16(const std::u8string_view u8s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u16string result;
     result.reserve(u8s.size()); // Initial capacity estimation
     
     for (size_t i = 0; i < u8s.size(); ) {
-        char32_t codepoint;
+        char32_t codepoint = 0; // initialize to 0 to shut up "uninitialized variable" error due to SkipInvalidValues branch
         
         if ((u8s[i] & 0x80) == 0) {
             // 1-byte encoding
@@ -452,9 +464,14 @@ wutils::ConversionResult<std::u16string> wutils::u16(const std::u8string_view u8
                         (u8s[i+3] & 0x3F);
             i += 4;
         } else {
-            // Invalid sequence, mark invalid and skip
-            is_valid = false;
-            continue;
+            // Invalid sequence
+            switch(errorPolicy) {
+                case ErrorPolicy::SkipInvalidValues:
+                    is_valid = false;
+                    continue;
+                case ErrorPolicy::StopOnFirstError:
+                    return std::unexpected(ConversionFailure<std::u16string>{result});
+            }
         }
         
         // Convert to UTF-16
@@ -467,9 +484,14 @@ wutils::ConversionResult<std::u16string> wutils::u16(const std::u8string_view u8
             result.push_back(high);
             result.push_back(low);
         } else {
-            // Invalid Codepoint, mark invalid and skip
-            is_valid = false;
-            continue;
+            // Invalid Codepoint
+            switch(errorPolicy) {
+                case ErrorPolicy::SkipInvalidValues:
+                    is_valid = false;
+                    continue;
+                case ErrorPolicy::StopOnFirstError:
+                    return std::unexpected(ConversionFailure<std::u16string>{result});
+            }
         }
     }
     if (is_valid) {
@@ -480,7 +502,7 @@ wutils::ConversionResult<std::u16string> wutils::u16(const std::u8string_view u8
 }
 
 // UTF-32 to UTF-16 conversion
-wutils::ConversionResult<std::u16string> wutils::u16(const std::u32string_view u32s) {
+wutils::ConversionResult<std::u16string> wutils::u16(const std::u32string_view u32s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u16string result;
     result.reserve(u32s.size() * 2); // Some code points might need surrogate pairs
@@ -496,9 +518,14 @@ wutils::ConversionResult<std::u16string> wutils::u16(const std::u32string_view u
             result.push_back(high);
             result.push_back(low);
         } else {
-            // Invalid codepoint, mark invalid and skip
-            is_valid = false;
-            continue;
+            // Invalid codepoint
+            switch(errorPolicy) {
+                case ErrorPolicy::SkipInvalidValues:
+                    is_valid = false;
+                    continue;
+                case ErrorPolicy::StopOnFirstError:
+                    return std::unexpected(ConversionFailure<std::u16string>{result});
+            }
         }
     }
     if (is_valid) {
@@ -509,13 +536,13 @@ wutils::ConversionResult<std::u16string> wutils::u16(const std::u32string_view u
 }
 
 // UTF-8 to UTF-32 conversion
-wutils::ConversionResult<std::u32string> wutils::u32(const std::u8string_view u8s) {
+wutils::ConversionResult<std::u32string> wutils::u32(const std::u8string_view u8s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u32string result;
     result.reserve(u8s.size()); // Initial capacity estimation
     
     for (size_t i = 0; i < u8s.size(); ) {
-        char32_t codepoint;
+        char32_t codepoint = 0; // initialize to 0 to shut up "uninitialized variable" error due to SkipInvalidValues branch
         
         if ((u8s[i] & 0x80) == 0) {
             // 1-byte encoding
@@ -539,17 +566,27 @@ wutils::ConversionResult<std::u32string> wutils::u32(const std::u8string_view u8
                         (u8s[i+3] & 0x3F);
             i += 4;
         } else {
-            // Invalid sequence, mark invalid and skip
-            is_valid = false;
-            continue;
+            // Invalid sequence
+            switch(errorPolicy) {
+                case ErrorPolicy::SkipInvalidValues:
+                    is_valid = false;
+                    continue;
+                case ErrorPolicy::StopOnFirstError:
+                    return std::unexpected(ConversionFailure<std::u32string>{result});
+            }
         }
         
         if (codepoint <= 0x10FFFF) {
             result.push_back(codepoint);
         } else {
-            // Invalid codepoint, mark invalid and skip
-            is_valid = false;
-            continue;
+            // Invalid codepoint
+            switch(errorPolicy) {
+                case ErrorPolicy::SkipInvalidValues:
+                    is_valid = false;
+                    continue;
+                case ErrorPolicy::StopOnFirstError:
+                    return std::unexpected(ConversionFailure<std::u32string>{result});
+            }
         }
     }
     if (is_valid) {
@@ -560,13 +597,13 @@ wutils::ConversionResult<std::u32string> wutils::u32(const std::u8string_view u8
 }
 
 // UTF-16 to UTF-32 conversion
-wutils::ConversionResult<std::u32string> wutils::u32(const std::u16string_view u16s) {
+wutils::ConversionResult<std::u32string> wutils::u32(const std::u16string_view u16s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u32string result;
     result.reserve(u16s.size()); // Initial capacity
     
     for (size_t i = 0; i < u16s.size(); ++i) {
-        char32_t codepoint;
+        char32_t codepoint = 0; // initialize to 0 to shut up "uninitialized variable" error due to SkipInvalidValues branch
         
         // Check for surrogate pair
         if (i + 1 < u16s.size() && 
@@ -576,9 +613,14 @@ wutils::ConversionResult<std::u32string> wutils::u32(const std::u16string_view u
             codepoint = 0x10000 + (((u16s[i] - 0xD800) << 10) | (u16s[i+1] - 0xDC00));
             ++i; // Skip the low surrogate on the next iteration
         } else if (u16s[i] >= 0xD800 && u16s[i] <= 0xDFFF) {
-            // Unpaired surrogate, mark invalid and skip
-            is_valid = false;
-            continue;
+            // Unpaired surrogate
+            switch(errorPolicy) {
+                case ErrorPolicy::SkipInvalidValues:
+                    is_valid = false;
+                    continue;
+                case ErrorPolicy::StopOnFirstError:
+                    return std::unexpected(ConversionFailure<std::u32string>{result});
+            }
         } else {
             codepoint = u16s[i];
         }
@@ -586,9 +628,14 @@ wutils::ConversionResult<std::u32string> wutils::u32(const std::u16string_view u
         if (codepoint <= 0x10FFFF) {
             result.push_back(codepoint);
         } else {
-            // Invalid codepoint, mark invalid and skip
-            is_valid = false;
-            continue;
+            // Invalid codepoint
+            switch(errorPolicy) {
+                case ErrorPolicy::SkipInvalidValues:
+                    is_valid = false;
+                    continue;
+                case ErrorPolicy::StopOnFirstError:
+                    return std::unexpected(ConversionFailure<std::u32string>{result});
+            }
         }
     }
     if (is_valid) {

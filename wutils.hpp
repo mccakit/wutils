@@ -10,6 +10,12 @@
 
 namespace wutils {
 
+// Determines course of action when encountered with an invalid sequence
+enum class ErrorPolicy {
+    SkipInvalidValues, // Skip invalid values and continue conversion to the best of its ability
+    StopOnFirstError // Stop conversion on the first invalid value, return partial conversion
+};
+
 template<typename T>
 struct ConversionFailure {
     T failed_sequence;
@@ -18,14 +24,20 @@ struct ConversionFailure {
 template<typename T>
 using ConversionResult = std::expected<T, ConversionFailure<T>>;
 
-ConversionResult<std::u8string> u8(const std::u16string_view u16s);
-ConversionResult<std::u8string> u8(const std::u32string_view u32s);
+ConversionResult<std::u8string> u8(const std::u16string_view u16s, 
+    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+ConversionResult<std::u8string> u8(const std::u32string_view u32s, 
+    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
 
-ConversionResult<std::u16string> u16(const std::u8string_view u8s);
-ConversionResult<std::u16string> u16(const std::u32string_view u32s);
+ConversionResult<std::u16string> u16(const std::u8string_view u8s, 
+    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+ConversionResult<std::u16string> u16(const std::u32string_view u32s, 
+    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
 
-ConversionResult<std::u32string> u32(const std::u8string_view u8s);
-ConversionResult<std::u32string> u32(const std::u16string_view u16s);
+ConversionResult<std::u32string> u32(const std::u8string_view u8s, 
+    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+ConversionResult<std::u32string> u32(const std::u16string_view u16s, 
+    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
 
 int uswidth(const std::u8string_view u8s);
 int uswidth(const std::u16string_view u16s);
