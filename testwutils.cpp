@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <iostream>
 #include <string>
@@ -15,6 +16,23 @@ void test_case(std::wstring ws, const int expected) {
     int width = wutils::wswidth(ws);
     std::wstringstream wss; wss << L"Length of \"" << ws << L"\": " << width;
     wutils::wprintln(wss.str());
+
+    wutils::wprintln(ws);
+    
+    // Print digits
+    if (width >= 1) {
+        std::wstringstream digits_lines;
+        for (int i = 1; i <= width; i++) {
+            digits_lines << (i % 10);
+        }
+        if (width >= 10) {
+            digits_lines << L'\n';
+            for (int i = 1; i <= width; i++) {
+                digits_lines << ((i % 10) ? L" " : std::to_wstring(i / 10));
+            }
+        }
+        wutils::wprintln(digits_lines.str() + L"\n");
+    }
     ASSERT_EQ(expected, width);
 }
 
@@ -31,32 +49,32 @@ int main() {
     // Test Case 1: Simple ASCII string
     {
         test_case(L"Hello, World!", 13);
-        wutils::wprintln(L"Test 1 (ASCII): Passed");
+        wutils::wprintln(L"Test 1 (ASCII): Passed\n-----");
     }
 
     // Test Case 2: Unicode character within the Basic Multilingual Plane (BMP)
     // The character 'é' (LATIN SMALL LETTER E WITH ACUTE) has code point U+00E9
     {
         test_case(L"Résumé", 6);
-        wutils::wprintln(L"Test 2 (Unicode BMP): Passed");
+        wutils::wprintln(L"Test 2 (Unicode BMP): Passed\n-----");
     }
 
     // Test Case 3: Character requiring a surrogate pair (if wchar_t is 16 bits)
     // The character '😂' (FACE WITH TEARS OF JOY) has code point U+1F602
     {
         test_case(L"😂😂😂", 6);
-        wutils::wprintln(L"Test 3 (Simple Emoji Surrogate Pair): Passed");
+        wutils::wprintln(L"Test 3 (Simple Emoji Surrogate Pair): Passed\n-----");
     }
     // Test Case 4: Empty string
     {
         test_case(L"", 0);
-        wutils::wprintln(L"Test 4 (Empty String): Passed");
+        wutils::wprintln(L"Test 4 (Empty String): Passed\n-----");
     }
     // Test Case 5: Advanced Emoji Sequence
     {
         // This single emoji (👩🏼‍🚀) is a set of 4 codepoints [128105] [127996] [8205] [128640]
         test_case(L"👩🏼‍🚀", 2);
-        wutils::wprintln(L"Test 5 (Advanced Emoji Sequence): Passed");
+        wutils::wprintln(L"Test 5 (Advanced Emoji Sequence): Passed\n-----");
     }
     // Test Case 6: Characters outside the Basic Multilingual Plane (Plane 0)
     {
@@ -66,8 +84,8 @@ int main() {
         test_case(L"𝕄𝕒𝕥𝕙𝕖𝕞𝕒𝕥𝕚𝕔𝕤", 11); // Mathematical Alpanumeric
         test_case(L"🌍🌎🌏", 6); // Emoji 1
         test_case(L"👨‍👩‍👧‍👦", 2); // Emoji 2
-        wutils::wprintln(L"Test 6.1 (Supplementary Multilingual Plane): Passed");
-       
+        wutils::wprintln(L"Test 6.1 (Supplementary Multilingual Plane): Passed\n-----");
+
         /* ===PLANE 2 (Supplementary Ideographic Plane)=== */
         test_case(L"𠔻𠕋𠖊𠖍𠖐", 10); // Rare Chinese Characters
         test_case(L"𠮷", 2); // Rare Japanese Variant
@@ -75,8 +93,13 @@ int main() {
         test_case(L"𠊛好", 4); // Vietnamese Chữ Nôm (CJK Extensions)
         test_case(L"𪚥𪆷𪃹", 6); // Rare Japanese Kanji (CJK Extensions)
         test_case(L"𪜈𪜋𪜌", 6); // Rare Korean Hanja (CJK Extensions)
-        wutils::wprintln(L"Test 6.2 (Supplementary Ideographic Plane): Passed");
+        wutils::wprintln(L"Test 6.2 (Supplementary Ideographic Plane): Passed\n-----");
 
+    }
+    // Test case 7: Arabic
+    {
+        test_case(L"اَلْعَرَبِيَّةُ", 7);
+        wutils::wprintln(L"Test 7 (Arabic): Passed\n-----");
     }
 
     wutils::wprintln(L"All tests completed successfully!");
