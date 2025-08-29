@@ -87,21 +87,24 @@ inline std::u8string us(const std::string_view s) {
 }
 #else // General, standard-compliant implementation
 inline ustring us(std::wstring_view ws) {
-    return ws | std::ranges::views::transform([](wchar_t wc) {
+    auto rng = ws | std::ranges::views::transform([](wchar_t wc) {
         return static_cast<uchar_t>(wc);
-    }) | std::ranges::to<ustring>();
+    });
+    return ustring(std::ranges::begin(rng), std::ranges::end(rng));
 }
 
 inline std::wstring ws(const ustring_view us) {
-    return us | std::ranges::views::transform([](uchar_t uc) {
+    auto rng = us | std::ranges::views::transform([](uchar_t uc) {
         return static_cast<wchar_t>(uc);
-    }) | std::ranges::to<std::wstring>();
+    });
+    return std::wstring(std::ranges::begin(rng), std::ranges::end(rng));
 }
 
 inline std::u8string us(const std::string_view s) {
-    return s | std::ranges::views::transform([](char c) {
+    auto rng = s | std::ranges::views::transform([](char c) {
         return static_cast<char8_t>(c);
-    }) | std::ranges::to<std::u8string>();
+    });
+    return std::u8string(std::ranges::begin(rng), std::ranges::end(rng));
 }
 #endif
 
