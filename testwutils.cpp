@@ -1,10 +1,8 @@
 #include <cassert>
-#include <cmath>
-#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <string_view>
-#include <print>
 #include <typeinfo>
 #include <locale>
 #include <sstream>
@@ -104,5 +102,5 @@ int main() {
 
     wutils::wprintln(L"All tests completed successfully!");
 
-    return 0;
+    return EXIT_SUCCESS;
 }
