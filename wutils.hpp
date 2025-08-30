@@ -6,6 +6,9 @@
 #include <string_view>
 #include <ranges>
 #include <expected>
+#ifndef _WIN32
+#include <iostream>
+#endif
 
 namespace wutils {
 
