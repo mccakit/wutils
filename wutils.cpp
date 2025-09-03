@@ -78,7 +78,7 @@
 
 #include "wutils.hpp"
 
-namespace detail {
+namespace internal {
 
 struct interval {
   char32_t first;
@@ -289,10 +289,10 @@ int mk_wcswidth(const char32_t *pwcs, size_t n)
   return width;
 }
 
-} // namespace detail
+} // namespace internal
 
 int wutils::uswidth(const std::u32string_view u32s) {
-    return detail::mk_wcswidth(u32s.data(), u32s.size());
+    return internal::mk_wcswidth(u32s.data(), u32s.size());
 }
 
 int wutils::uswidth(const std::u16string_view u16s) {
@@ -300,9 +300,9 @@ int wutils::uswidth(const std::u16string_view u16s) {
     if (!u32s) {
         // Conversion failed, but compute anyways
         std::u32string_view partial_skipped_seq = u32s.error().partial_result;
-        return detail::mk_wcswidth(partial_skipped_seq.data(), partial_skipped_seq.size());
+        return internal::mk_wcswidth(partial_skipped_seq.data(), partial_skipped_seq.size());
     }
-    return detail::mk_wcswidth(u32s->data(), u32s->size());
+    return internal::mk_wcswidth(u32s->data(), u32s->size());
 }
 
 int wutils::uswidth(const std::u8string_view u8s) {
@@ -310,9 +310,9 @@ int wutils::uswidth(const std::u8string_view u8s) {
     if (!u32s) {
         // Conversion failed, but compute anyways
         std::u32string_view partial_skipped_seq = u32s.error().partial_result;
-        return detail::mk_wcswidth(partial_skipped_seq.data(), partial_skipped_seq.size());
+        return internal::mk_wcswidth(partial_skipped_seq.data(), partial_skipped_seq.size());
     }
-    return detail::mk_wcswidth(u32s->data(), u32s->size());
+    return internal::mk_wcswidth(u32s->data(), u32s->size());
 }
 
 #ifdef _WIN32
@@ -332,7 +332,7 @@ void wutils::wprintln(const std::wstring_view ws) {
 /* UTF conversion */ 
 
 // UTF-16 to UTF-8 conversion
-wutils::ConversionResult<std::u8string> wutils::u8(const std::u16string_view u16s, const ErrorPolicy errorPolicy) {
+wutils::ConversionResult<std::u8string> wutils::detail::u8(const std::u16string_view u16s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u8string result;
     result.reserve(u16s.size() * 3); // Rough estimate for space needed
@@ -391,7 +391,7 @@ wutils::ConversionResult<std::u8string> wutils::u8(const std::u16string_view u16
 }
 
 // UTF-32 to UTF-8 conversion
-wutils::ConversionResult<std::u8string> wutils::u8(const std::u32string_view u32s, const ErrorPolicy errorPolicy) {
+wutils::ConversionResult<std::u8string> wutils::detail::u8(const std::u32string_view u32s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u8string result;
     result.reserve(u32s.size() * 4); // Worst case scenario
@@ -434,7 +434,7 @@ wutils::ConversionResult<std::u8string> wutils::u8(const std::u32string_view u32
 }
 
 // UTF-8 to UTF-16 conversion
-wutils::ConversionResult<std::u16string> wutils::u16(const std::u8string_view u8s, const ErrorPolicy errorPolicy) {
+wutils::ConversionResult<std::u16string> wutils::detail::u16(const std::u8string_view u8s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u16string result;
     result.reserve(u8s.size()); // Initial capacity estimation
@@ -502,7 +502,7 @@ wutils::ConversionResult<std::u16string> wutils::u16(const std::u8string_view u8
 }
 
 // UTF-32 to UTF-16 conversion
-wutils::ConversionResult<std::u16string> wutils::u16(const std::u32string_view u32s, const ErrorPolicy errorPolicy) {
+wutils::ConversionResult<std::u16string> wutils::detail::u16(const std::u32string_view u32s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u16string result;
     result.reserve(u32s.size() * 2); // Some code points might need surrogate pairs
@@ -536,7 +536,7 @@ wutils::ConversionResult<std::u16string> wutils::u16(const std::u32string_view u
 }
 
 // UTF-8 to UTF-32 conversion
-wutils::ConversionResult<std::u32string> wutils::u32(const std::u8string_view u8s, const ErrorPolicy errorPolicy) {
+wutils::ConversionResult<std::u32string> wutils::detail::u32(const std::u8string_view u8s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u32string result;
     result.reserve(u8s.size()); // Initial capacity estimation
@@ -597,7 +597,7 @@ wutils::ConversionResult<std::u32string> wutils::u32(const std::u8string_view u8
 }
 
 // UTF-16 to UTF-32 conversion
-wutils::ConversionResult<std::u32string> wutils::u32(const std::u16string_view u16s, const ErrorPolicy errorPolicy) {
+wutils::ConversionResult<std::u32string> wutils::detail::u32(const std::u16string_view u16s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u32string result;
     result.reserve(u16s.size()); // Initial capacity
