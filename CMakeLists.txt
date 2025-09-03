@@ -1,6 +1,8 @@
 # Minimum CMake version required
 cmake_minimum_required(VERSION 3.20)
 
+set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
+
 # Project information
 project(TestWutils CXX)
 
@@ -21,7 +23,9 @@ elseif(UNIX)
 endif()
 
 # Define the source files
-set(SOURCES wutils.cpp testwutils.cpp)
+set(TEST_SOURCES wutils.cpp testwutils.cpp)
+set(EXAMPLE_SOURCES wutils.cpp example.cpp)
 
 # Add executable target
-add_executable(testwutils ${SOURCES})
+add_executable(testwutils ${TEST_SOURCES})
+add_executable(example ${EXAMPLE_SOURCES})

@@ -37,4 +37,6 @@ This can lead to incorrect behavior in certain edge cases. For example, some Win
 
 To use the library, simply add `wutils.hpp` and `wutils.cpp` to your project, and add them to your compilation steps.
 
-For building examples, see the examples `Makefile.exmample` (GNU Make) and `Makefile.vc.example` (MSVC nmake.exe)
+For code examples, see `example.cpp`.
+
+For building examples, see the `CMakeLists.txt` file, or example Makefiles `Makefile.exmample` (GNU Make) and `Makefile.vc.example` (MSVC nmake.exe)
