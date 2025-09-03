@@ -28,6 +28,10 @@ struct ConversionFailure {
 template<typename T>
 using ConversionResult = std::expected<T, ConversionFailure<T>>;
 
+inline ConversionResult<std::u8string> u8(const std::u8string_view u8s,
+    [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) { 
+    return std::u8string(u8s); 
+}
 ConversionResult<std::u8string> u8(const std::u16string_view u16s, 
     const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
 ConversionResult<std::u8string> u8(const std::u32string_view u32s, 
@@ -35,6 +39,10 @@ ConversionResult<std::u8string> u8(const std::u32string_view u32s,
 
 ConversionResult<std::u16string> u16(const std::u8string_view u8s, 
     const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+inline ConversionResult<std::u16string> u16(const std::u16string_view u16s,
+    [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
+    return std::u16string(u16s);
+}
 ConversionResult<std::u16string> u16(const std::u32string_view u32s, 
     const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
 
@@ -42,6 +50,10 @@ ConversionResult<std::u32string> u32(const std::u8string_view u8s,
     const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
 ConversionResult<std::u32string> u32(const std::u16string_view u16s, 
     const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+inline ConversionResult<std::u32string> u32(const std::u32string_view u32s,
+    [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
+    return std::u32string(u32s);
+}
 
 int uswidth(const std::u8string_view u8s);
 int uswidth(const std::u16string_view u16s);
