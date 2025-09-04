@@ -55,21 +55,27 @@ inline void wprintln(const std::wstring_view ws) {
 
 // Determines course of action when encountered with an invalid sequence
 enum class ErrorPolicy {
+    UseReplacementCharacter, // Insert replacement character '�' on error
     SkipInvalidValues, // Skip invalid values and continue conversion to the best of its ability
     StopOnFirstError // Stop conversion on the first invalid value, return partial conversion
 };
 
 template<typename T>
-struct ConversionFailure {
-    // Either the "best effort" result skipping invalid characters, 
-    // or the partially converted sequence up to the point of failure, depending on error policy
-    T partial_result; 
+struct ConversionResult {
+    T value;
+    bool is_valid;
+
+    T& operator*() { return value; }
+    T* operator->() { return &value; }
+    const T* operator->() const { return &value; }
+    explicit operator bool() const { return is_valid; }
 };
 
-template<typename T>
-using ConversionResult = std::expected<T, ConversionFailure<T>>;
-
 namespace detail {
+
+static constexpr inline const std::u8string_view REPLACEMENT_CHAR_8 = u8"�";
+static constexpr inline const char16_t REPLACEMENT_CHAR_16 = u'�';
+static constexpr inline const char32_t REPLACEMENT_CHAR_32 = U'�';
 
 template<typename FromChar, typename ToChar>
 struct IsImplicitlyConvertible {
@@ -97,30 +103,30 @@ struct IsImplicitlyConvertible<uchar_t, wchar_t> {
 };
 
 inline ConversionResult<std::u8string> u8(const std::u8string_view u8s,
-    [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
-    return std::u8string(u8s);
+    [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return {std::u8string(u8s), true};
 }
 ConversionResult<std::u8string> u8(const std::u16string_view u16s, 
-    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+    const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter);
 ConversionResult<std::u8string> u8(const std::u32string_view u32s, 
-    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+    const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter);
 
 ConversionResult<std::u16string> u16(const std::u8string_view u8s, 
-    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+    const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter);
 inline ConversionResult<std::u16string> u16(const std::u16string_view u16s,
-    [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
-    return std::u16string(u16s);
+    [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return {std::u16string(u16s), true};
 }
 ConversionResult<std::u16string> u16(const std::u32string_view u32s, 
-    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+    const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter);
 
 ConversionResult<std::u32string> u32(const std::u8string_view u8s, 
-    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+    const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter);
 ConversionResult<std::u32string> u32(const std::u16string_view u16s, 
-    const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues);
+    const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter);
 inline ConversionResult<std::u32string> u32(const std::u32string_view u32s,
-    [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
-    return std::u32string(u32s);
+    [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return {std::u32string(u32s), true};
 }
 
 template<typename FromChar, typename ToChar>
@@ -143,6 +149,8 @@ ConversionResult<ustring> convert_to_ustring(std::basic_string_view<FromChar> fr
         return u16(from, errorPolicy);
     } else if constexpr (std::is_same_v<uchar_t, char32_t>) {
         return u32(from, errorPolicy);
+    } else if constexpr (std::is_same_v<FromChar, wchar_t>) {
+        return {convertImplicitly<wchar_t, uchar_t>(from), true};
     }
 }
 
@@ -155,21 +163,15 @@ ConversionResult<std::basic_string<ToChar>> convert_from_ustring(ustring_view fr
     } else if constexpr (std::is_same_v<ToChar, char32_t>) {
         return u32(from, errorPolicy);
     } else if constexpr (std::is_same_v<ToChar, wchar_t>) {
-        return convertImplicitly<uchar_t, wchar_t>(from);
+        return {convertImplicitly<uchar_t, wchar_t>(from), true};
     }
 }
 
 template<typename ToChar>
 ConversionResult<std::basic_string<ToChar>> propagateError(ConversionResult<ustring> inner, ErrorPolicy errorPolicy) {
-    if (inner.has_value()) {
-        return convert_from_ustring<ToChar>(*inner, errorPolicy);
-    } else {
-        ConversionResult<std::basic_string<ToChar>> last = convert_from_ustring<ToChar>(inner.error().partial_result, errorPolicy);
-        std::basic_string failedError = ( (last) ? (*last) : (last.error().partial_result));
-        return std::unexpected(ConversionFailure<std::basic_string<ToChar>>(failedError));
-    }
+    ConversionResult<std::basic_string<ToChar>> last = convert_from_ustring<ToChar>(inner.value, errorPolicy);
+    return {last.value, (inner.is_valid && last.is_valid)};
 }
-
 
 } // namespace detail
 // Main "dispatcher"-like convert template
@@ -180,12 +182,12 @@ ConversionResult<std::basic_string<ToChar>> propagateError(ConversionResult<ustr
 // Same thing happens in the opposite direction (char32_t to wchar_t)
 template<typename FromChar, typename ToChar>
 ConversionResult<std::basic_string<ToChar>> convert(std::basic_string_view<FromChar> from, 
-        ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
+        ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     if constexpr (std::is_same_v<FromChar, ToChar>) {
-        return std::basic_string<ToChar>(from);
+        return {std::basic_string<ToChar>(from), true};
     }
     else if constexpr (detail::IsImplicitlyConvertible<FromChar, ToChar>::value) {
-        return detail::convertImplicitly<FromChar, ToChar>(from);
+        return {detail::convertImplicitly<FromChar, ToChar>(from), true};
     } else if constexpr (std::is_same_v<ToChar, char8_t>) {
         return detail::propagateError<char8_t>(detail::convert_to_ustring<FromChar>(from, errorPolicy), errorPolicy);
     } else if constexpr (std::is_same_v<ToChar, char16_t>) {
@@ -216,27 +218,27 @@ inline std::string u8s_to_s(std::u8string_view from) {
 
 // "Advanced" conversions that require ConversionResult
 template<typename FromChar>
-inline ConversionResult<std::u8string> u8(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
+inline ConversionResult<std::u8string> u8(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<FromChar, char8_t>(from, errorPolicy);
 }
 
 template<typename FromChar>
-inline ConversionResult<std::u16string> u16(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
+inline ConversionResult<std::u16string> u16(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<FromChar, char16_t>(from, errorPolicy);
 }
 
 template<typename FromChar>
-inline ConversionResult<std::u32string> u32(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
+inline ConversionResult<std::u32string> u32(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<FromChar, char32_t>(from, errorPolicy);
 }
 
 template<typename FromChar>
-inline ConversionResult<ustring> us(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
+inline ConversionResult<ustring> us(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<FromChar, uchar_t>(from, errorPolicy);
 }
 
 template<typename FromChar>
-inline ConversionResult<std::wstring> ws(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::SkipInvalidValues) {
+inline ConversionResult<std::wstring> ws(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<FromChar, wchar_t>(from, errorPolicy);
 }
 

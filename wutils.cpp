@@ -297,21 +297,11 @@ int wutils::uswidth(const std::u32string_view u32s) {
 
 int wutils::uswidth(const std::u16string_view u16s) {
     wutils::ConversionResult<std::u32string> u32s = wutils::u32(u16s, wutils::ErrorPolicy::SkipInvalidValues);
-    if (!u32s) {
-        // Conversion failed, but compute anyways
-        std::u32string_view partial_skipped_seq = u32s.error().partial_result;
-        return internal::mk_wcswidth(partial_skipped_seq.data(), partial_skipped_seq.size());
-    }
     return internal::mk_wcswidth(u32s->data(), u32s->size());
 }
 
 int wutils::uswidth(const std::u8string_view u8s) {
     wutils::ConversionResult<std::u32string> u32s = wutils::u32(u8s, wutils::ErrorPolicy::SkipInvalidValues);
-    if (!u32s) {
-        // Conversion failed, but compute anyways
-        std::u32string_view partial_skipped_seq = u32s.error().partial_result;
-        return internal::mk_wcswidth(partial_skipped_seq.data(), partial_skipped_seq.size());
-    }
     return internal::mk_wcswidth(u32s->data(), u32s->size());
 }
 
@@ -355,7 +345,11 @@ wutils::ConversionResult<std::u8string> wutils::detail::u8(const std::u16string_
                     is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return std::unexpected(ConversionFailure<std::u8string>{result});
+                    return {result, false};
+                case ErrorPolicy::UseReplacementCharacter:
+                    is_valid = false;
+                    codepoint = wutils::detail::REPLACEMENT_CHAR_32;
+
             }
 
         } else {
@@ -383,11 +377,7 @@ wutils::ConversionResult<std::u8string> wutils::detail::u8(const std::u16string_
             result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
         }
     }
-    if (is_valid) {
-        return result;
-    } else {
-        return std::unexpected(ConversionFailure<std::u8string>{result});
-    }
+    return {result, is_valid};
 }
 
 // UTF-32 to UTF-8 conversion
@@ -422,15 +412,14 @@ wutils::ConversionResult<std::u8string> wutils::detail::u8(const std::u32string_
                     is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return std::unexpected(ConversionFailure<std::u8string>{result});
+                    return {result, false};
+                case ErrorPolicy::UseReplacementCharacter:
+                    is_valid = false;
+                    result.append(wutils::detail::REPLACEMENT_CHAR_8);
             }
         }
     }
-    if (is_valid) {
-        return result;
-    } else {
-        return std::unexpected(ConversionFailure<std::u8string>{result});
-    }
+    return {result, is_valid};
 }
 
 // UTF-8 to UTF-16 conversion
@@ -470,7 +459,10 @@ wutils::ConversionResult<std::u16string> wutils::detail::u16(const std::u8string
                     is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return std::unexpected(ConversionFailure<std::u16string>{result});
+                    return {result, false};
+                case ErrorPolicy::UseReplacementCharacter:
+                    is_valid = false;
+                    codepoint = wutils::detail::REPLACEMENT_CHAR_32;
             }
         }
         
@@ -490,15 +482,14 @@ wutils::ConversionResult<std::u16string> wutils::detail::u16(const std::u8string
                     is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return std::unexpected(ConversionFailure<std::u16string>{result});
+                    return {result, false};
+                case ErrorPolicy::UseReplacementCharacter:
+                    is_valid = false;
+                    result.push_back(wutils::detail::REPLACEMENT_CHAR_32);
             }
         }
     }
-    if (is_valid) {
-        return result;
-    } else {
-        return std::unexpected(ConversionFailure<std::u16string>{result});
-    }
+    return {result, is_valid};
 }
 
 // UTF-32 to UTF-16 conversion
@@ -524,15 +515,14 @@ wutils::ConversionResult<std::u16string> wutils::detail::u16(const std::u32strin
                     is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return std::unexpected(ConversionFailure<std::u16string>{result});
+                    return {result, is_valid};
+                case ErrorPolicy::UseReplacementCharacter:
+                    is_valid = false;
+                    result.push_back(wutils::detail::REPLACEMENT_CHAR_16);
             }
         }
     }
-    if (is_valid) {
-        return result;
-    } else {
-        return std::unexpected(ConversionFailure<std::u16string>{result});
-    }
+    return {result, is_valid};
 }
 
 // UTF-8 to UTF-32 conversion
@@ -572,7 +562,10 @@ wutils::ConversionResult<std::u32string> wutils::detail::u32(const std::u8string
                     is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return std::unexpected(ConversionFailure<std::u32string>{result});
+                    return {result, false};
+                case ErrorPolicy::UseReplacementCharacter:
+                    is_valid = false;
+                    codepoint = wutils::detail::REPLACEMENT_CHAR_32;
             }
         }
         
@@ -585,15 +578,14 @@ wutils::ConversionResult<std::u32string> wutils::detail::u32(const std::u8string
                     is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return std::unexpected(ConversionFailure<std::u32string>{result});
+                    return {result, false};
+                case ErrorPolicy::UseReplacementCharacter:
+                    is_valid = false;
+                    result.push_back(wutils::detail::REPLACEMENT_CHAR_32);
             }
         }
     }
-    if (is_valid) {
-        return result;
-    } else {
-        return std::unexpected(ConversionFailure<std::u32string>{result});
-    }
+    return {result, is_valid};
 }
 
 // UTF-16 to UTF-32 conversion
@@ -619,7 +611,10 @@ wutils::ConversionResult<std::u32string> wutils::detail::u32(const std::u16strin
                     is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return std::unexpected(ConversionFailure<std::u32string>{result});
+                    return {result, false};
+                case ErrorPolicy::UseReplacementCharacter:
+                    is_valid = false;
+                    codepoint = wutils::detail::REPLACEMENT_CHAR_32;
             }
         } else {
             codepoint = u16s[i];
@@ -634,13 +629,12 @@ wutils::ConversionResult<std::u32string> wutils::detail::u32(const std::u16strin
                     is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return std::unexpected(ConversionFailure<std::u32string>{result});
+                    return {result, false};
+                case ErrorPolicy::UseReplacementCharacter:
+                    is_valid = false;
+                    result.push_back(wutils::detail::REPLACEMENT_CHAR_32);
             }
         }
     }
-    if (is_valid) {
-        return result;
-    } else {
-        return std::unexpected(ConversionFailure<std::u32string>{result});
-    }
+    return {result, is_valid};
 }

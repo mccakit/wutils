@@ -41,7 +41,7 @@ void test_width(std::wstring ws, const int expected) {
 
 template<typename FromChar, typename ToChar, typename Func>
 void test_conversion(Func func, std::basic_string_view<FromChar> in) {
-    wutils::ConversionResult<std::basic_string<ToChar>> result = func(in, wutils::ErrorPolicy::SkipInvalidValues);
+    wutils::ConversionResult<std::basic_string<ToChar>> result = func(in, wutils::ErrorPolicy::UseReplacementCharacter);
     ASSERT_TRUE(result);
     auto w_in = wutils::ws<FromChar>(in);
     ASSERT_TRUE(w_in);
