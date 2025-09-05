@@ -317,61 +317,136 @@ void wutils::wcerr(const std::wstring_view ws) {
 
 /* UTF conversion */ 
 
+namespace internal {
+    // A struct to hold the result of a single decoding operation
+    struct DecodeResult {
+        char32_t codepoint;      // The decoded Unicode codepoint
+        size_t consumed_units;   // Number of input units (e.g., char8_t) consumed
+        bool is_valid;           // Was the sequence valid?
+    };
+
+    // Decodes one character from a UTF-8 stream, with validation.
+    DecodeResult decode_one_utf8(std::u8string_view input) {
+        if (input.empty()) {
+            return {0, 0, false};
+        }
+
+        unsigned char c = input[0];
+
+        if (c < 0x80) { // 0xxxxxxx
+            return {c, 1, true};
+        }
+
+        if (c < 0xC2) { return {0, 1, false}; } // Invalid sequence
+
+        if (c < 0xE0) { // 110xxxxx 10xxxxxx
+            if (input.size() < 2 || (input[1] & 0xC0) != 0x80) {
+                return {0, 1, false};
+            }
+            char32_t cp = ((c & 0x1F) << 6) | (input[1] & 0x3F);
+            if (cp < 0x80) { return {0, 1, false}; } // Overlong
+            return {cp, 2, true};
+        }
+
+        if (c < 0xF0) { // 1110xxxx 10xxxxxx 10xxxxxx
+            if (input.size() < 3 || (input[1] & 0xC0) != 0x80 || (input[2] & 0xC0) != 0x80) {
+                return {0, 1, false};
+            }
+            char32_t cp = ((c & 0x0F) << 12) | ((input[1] & 0x3F) << 6) | (input[2] & 0x3F);
+            if (cp < 0x800) { return {0, 1, false}; } // Overlong
+            if (cp >= 0xD800 && cp <= 0xDFFF) { return {0, 1, false}; } // Surrogates not allowed
+            return {cp, 3, true};
+        }
+
+        if (c < 0xF5) { // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+            if (input.size() < 4 || (input[1] & 0xC0) != 0x80 || (input[2] & 0xC0) != 0x80 || (input[3] & 0xC0) != 0x80) {
+                return {0, 1, false};
+            }
+            char32_t cp = ((c & 0x07) << 18) | ((input[1] & 0x3F) << 12) | ((input[2] & 0x3F) << 6) | (input[3] & 0x3F);
+            if (cp < 0x10000) { return {0, 1, false}; } // Overlong
+            if (cp > 0x10FFFF) { return {0, 1, false}; } // Out of range
+            return {cp, 4, true};
+        }
+
+        return {0, 1, false}; // Invalid sequence
+    }
+
+    // Decodes one character from a UTF-16 stream, with validation.
+    DecodeResult decode_one_utf16(std::u16string_view input) {
+        if (input.empty()) {
+            return {0, 0, false};
+        }
+        char16_t c1 = input[0];
+        if (c1 < 0xD800 || c1 > 0xDFFF) {
+            return {c1, 1, true}; // Not a surrogate
+        }
+        if (c1 > 0xDBFF || input.size() < 2) {
+            return {0, 1, false}; // Lone low surrogate or truncated sequence
+        }
+        char16_t c2 = input[1];
+        if (c2 < 0xDC00 || c2 > 0xDFFF) {
+            return {0, 1, false}; // High surrogate not followed by low surrogate
+        }
+        char32_t codepoint = 0x10000 + (((c1 - 0xD800) << 10) | (c2 - 0xDC00));
+        return {codepoint, 2, true};
+    }
+
+    // Encodes a codepoint and appends it to a UTF-8 string.
+    void encode_utf8(char32_t codepoint, std::u8string& output) {
+        if (codepoint <= 0x7F) {
+            output.push_back(static_cast<char8_t>(codepoint));
+        } else if (codepoint <= 0x7FF) {
+            output.push_back(static_cast<char8_t>(0xC0 | (codepoint >> 6)));
+            output.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        } else if (codepoint <= 0xFFFF) {
+            output.push_back(static_cast<char8_t>(0xE0 | (codepoint >> 12)));
+            output.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
+            output.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        } else {
+            output.push_back(static_cast<char8_t>(0xF0 | (codepoint >> 18)));
+            output.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 12) & 0x3F)));
+            output.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
+            output.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        }
+    }
+
+    // Encodes a codepoint and appends it to a UTF-16 string.
+    void encode_utf16(char32_t codepoint, std::u16string& output) {
+        if (codepoint <= 0xFFFF) {
+            output.push_back(static_cast<char16_t>(codepoint));
+        } else {
+            char16_t high = static_cast<char16_t>(0xD800) + static_cast<char16_t>((codepoint - 0x10000) >> 10);
+            char16_t low = static_cast<char16_t>(0xDC00) + static_cast<char16_t>((codepoint - 0x10000) & 0x3FF);
+            output.push_back(high);
+            output.push_back(low);
+        }
+    }
+} // namespace internal
+
+
 // UTF-16 to UTF-8 conversion
 wutils::ConversionResult<std::u8string> wutils::detail::u8(const std::u16string_view u16s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u8string result;
-    result.reserve(u16s.size() * 3); // Rough estimate for space needed
-    
-    for (size_t i = 0; i < u16s.size(); ++i) {
-        char32_t codepoint = 0; // initialize to 0 to shut up "uninitialized variable" error due to SkipInvalidValues branch
-        
-        // Check for surrogate pair
-        if (i + 1 < u16s.size() && 
-            (u16s[i] >= 0xD800 && u16s[i] <= 0xDBFF) && 
-            (u16s[i+1] >= 0xDC00 && u16s[i+1] <= 0xDFFF)) {
-            // Decode surrogate pair
-            codepoint = 0x10000 + (((u16s[i] - 0xD800) << 10) | (u16s[i+1] - 0xDC00));
-            ++i; // Skip the low surrogate on the next iteration
-        } else if ((u16s[i] >= 0xD800 && u16s[i] <= 0xDBFF) || (u16s[i] >= 0xDC00 && u16s[i] <= 0xDFFF)) {
+    result.reserve(u16s.size());
 
-            // Invalid surrogate pair
+    for (size_t i = 0; i < u16s.size(); ) {
+        internal::DecodeResult decoded = internal::decode_one_utf16(u16s.substr(i));
+        if (decoded.is_valid) {
+            internal::encode_utf8(decoded.codepoint, result);
+        } else {
+            is_valid = false;
             switch(errorPolicy) {
                 case ErrorPolicy::SkipInvalidValues:
-                    is_valid = false;
-                    continue;
+                    break;
                 case ErrorPolicy::StopOnFirstError:
                     return {result, false};
                 case ErrorPolicy::UseReplacementCharacter:
-                    is_valid = false;
-                    codepoint = wutils::detail::REPLACEMENT_CHAR_32;
-
+                    result.append(wutils::detail::REPLACEMENT_CHAR_8);
+                    break;
             }
-
-        } else {
-            codepoint = u16s[i];
         }
-        
-        // Encode to UTF-8
-        if (codepoint <= 0x7F) {
-            // 1-byte encoding
-            result.push_back(static_cast<char8_t>(codepoint));
-        } else if (codepoint <= 0x7FF) {
-            // 2-byte encoding
-            result.push_back(static_cast<char8_t>(0xC0 | (codepoint >> 6)));
-            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
-        } else if (codepoint <= 0xFFFF) {
-            // 3-byte encoding
-            result.push_back(static_cast<char8_t>(0xE0 | (codepoint >> 12)));
-            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
-            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
-        } else {
-            // 4-byte encoding
-            result.push_back(static_cast<char8_t>(0xF0 | (codepoint >> 18)));
-            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 12) & 0x3F)));
-            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
-            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
-        }
+        i += decoded.consumed_units;
     }
     return {result, is_valid};
 }
@@ -380,38 +455,21 @@ wutils::ConversionResult<std::u8string> wutils::detail::u8(const std::u16string_
 wutils::ConversionResult<std::u8string> wutils::detail::u8(const std::u32string_view u32s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u8string result;
-    result.reserve(u32s.size() * 4); // Worst case scenario
+    result.reserve(u32s.size());
     
     for (char32_t codepoint : u32s) {
-        if (codepoint <= 0x7F) {
-            // 1-byte encoding
-            result.push_back(static_cast<char8_t>(codepoint));
-        } else if (codepoint <= 0x7FF) {
-            // 2-byte encoding
-            result.push_back(static_cast<char8_t>(0xC0 | (codepoint >> 6)));
-            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
-        } else if (codepoint <= 0xFFFF) {
-            // 3-byte encoding
-            result.push_back(static_cast<char8_t>(0xE0 | (codepoint >> 12)));
-            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
-            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
-        } else if (codepoint <= 0x10FFFF) {
-            // 4-byte encoding
-            result.push_back(static_cast<char8_t>(0xF0 | (codepoint >> 18)));
-            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 12) & 0x3F)));
-            result.push_back(static_cast<char8_t>(0x80 | ((codepoint >> 6) & 0x3F)));
-            result.push_back(static_cast<char8_t>(0x80 | (codepoint & 0x3F)));
+        if (codepoint <= 0x10FFFF && !(codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
+            internal::encode_utf8(codepoint, result);
         } else {
-            // Invalid codepoint
+            is_valid = false;
             switch(errorPolicy) {
                 case ErrorPolicy::SkipInvalidValues:
-                    is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
                     return {result, false};
                 case ErrorPolicy::UseReplacementCharacter:
-                    is_valid = false;
                     result.append(wutils::detail::REPLACEMENT_CHAR_8);
+                    break;
             }
         }
     }
@@ -422,68 +480,25 @@ wutils::ConversionResult<std::u8string> wutils::detail::u8(const std::u32string_
 wutils::ConversionResult<std::u16string> wutils::detail::u16(const std::u8string_view u8s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u16string result;
-    result.reserve(u8s.size()); // Initial capacity estimation
+    result.reserve(u8s.size());
     
     for (size_t i = 0; i < u8s.size(); ) {
-        char32_t codepoint = 0; // initialize to 0 to shut up "uninitialized variable" error due to SkipInvalidValues branch
-        
-        if ((u8s[i] & 0x80) == 0) {
-            // 1-byte encoding
-            codepoint = u8s[i];
-            i += 1;
-        } else if ((u8s[i] & 0xE0) == 0xC0 && i + 1 < u8s.size()) {
-            // 2-byte encoding
-            codepoint = ((u8s[i] & 0x1F) << 6) | (u8s[i+1] & 0x3F);
-            i += 2;
-        } else if ((u8s[i] & 0xF0) == 0xE0 && i + 2 < u8s.size()) {
-            // 3-byte encoding
-            codepoint = ((u8s[i] & 0x0F) << 12) | 
-                       ((u8s[i+1] & 0x3F) << 6) | 
-                        (u8s[i+2] & 0x3F);
-            i += 3;
-        } else if ((u8s[i] & 0xF8) == 0xF0 && i + 3 < u8s.size()) {
-            // 4-byte encoding
-            codepoint = ((u8s[i] & 0x07) << 18) | 
-                       ((u8s[i+1] & 0x3F) << 12) | 
-                       ((u8s[i+2] & 0x3F) << 6) | 
-                        (u8s[i+3] & 0x3F);
-            i += 4;
+        internal::DecodeResult decoded = internal::decode_one_utf8(u8s.substr(i));
+        if (decoded.is_valid) {
+            internal::encode_utf16(decoded.codepoint, result);
         } else {
-            // Invalid sequence
+            is_valid = false;
             switch(errorPolicy) {
                 case ErrorPolicy::SkipInvalidValues:
-                    is_valid = false;
-                    continue;
+                    break;
                 case ErrorPolicy::StopOnFirstError:
                     return {result, false};
                 case ErrorPolicy::UseReplacementCharacter:
-                    is_valid = false;
-                    codepoint = wutils::detail::REPLACEMENT_CHAR_32;
+                    internal::encode_utf16(wutils::detail::REPLACEMENT_CHAR_32, result);
+                    break;
             }
         }
-        
-        // Convert to UTF-16
-        if (codepoint <= 0xFFFF) {
-            result.push_back(static_cast<char16_t>(codepoint));
-        } else if (codepoint <= 0x10FFFF) {
-            // Create surrogate pair
-            char16_t high = static_cast<char16_t>(0xD800) + static_cast<char16_t>((codepoint - 0x10000) >> 10);
-            char16_t low = static_cast<char16_t>(0xDC00) + static_cast<char16_t>((codepoint - 0x10000) & 0x3FF);
-            result.push_back(high);
-            result.push_back(low);
-        } else {
-            // Invalid Codepoint
-            switch(errorPolicy) {
-                case ErrorPolicy::SkipInvalidValues:
-                    is_valid = false;
-                    continue;
-                case ErrorPolicy::StopOnFirstError:
-                    return {result, false};
-                case ErrorPolicy::UseReplacementCharacter:
-                    is_valid = false;
-                    result.push_back(wutils::detail::REPLACEMENT_CHAR_32);
-            }
-        }
+        i += decoded.consumed_units;
     }
     return {result, is_valid};
 }
@@ -492,29 +507,21 @@ wutils::ConversionResult<std::u16string> wutils::detail::u16(const std::u8string
 wutils::ConversionResult<std::u16string> wutils::detail::u16(const std::u32string_view u32s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u16string result;
-    result.reserve(u32s.size() * 2); // Some code points might need surrogate pairs
+    result.reserve(u32s.size());
     
     for (char32_t codepoint : u32s) {
-        if (codepoint <= 0xFFFF) {
-            // BMP character (no surrogate needed)
-            result.push_back(static_cast<char16_t>(codepoint));
-        } else if (codepoint <= 0x10FFFF) {
-            // Create surrogate pair
-            char16_t high = static_cast<char16_t>(0xD800) + static_cast<char16_t>((codepoint - 0x10000) >> 10);
-            char16_t low = static_cast<char16_t>(0xDC00) + static_cast<char16_t>((codepoint - 0x10000) & 0x3FF);
-            result.push_back(high);
-            result.push_back(low);
+        if (codepoint <= 0x10FFFF && !(codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
+            internal::encode_utf16(codepoint, result);
         } else {
-            // Invalid codepoint
+            is_valid = false;
             switch(errorPolicy) {
                 case ErrorPolicy::SkipInvalidValues:
-                    is_valid = false;
                     continue;
                 case ErrorPolicy::StopOnFirstError:
-                    return {result, is_valid};
+                    return {result, false};
                 case ErrorPolicy::UseReplacementCharacter:
-                    is_valid = false;
                     result.push_back(wutils::detail::REPLACEMENT_CHAR_16);
+                    break;
             }
         }
     }
@@ -525,61 +532,25 @@ wutils::ConversionResult<std::u16string> wutils::detail::u16(const std::u32strin
 wutils::ConversionResult<std::u32string> wutils::detail::u32(const std::u8string_view u8s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u32string result;
-    result.reserve(u8s.size()); // Initial capacity estimation
+    result.reserve(u8s.size());
     
     for (size_t i = 0; i < u8s.size(); ) {
-        char32_t codepoint = 0; // initialize to 0 to shut up "uninitialized variable" error due to SkipInvalidValues branch
-        
-        if ((u8s[i] & 0x80) == 0) {
-            // 1-byte encoding
-            codepoint = u8s[i];
-            i += 1;
-        } else if ((u8s[i] & 0xE0) == 0xC0 && i + 1 < u8s.size()) {
-            // 2-byte encoding
-            codepoint = ((u8s[i] & 0x1F) << 6) | (u8s[i+1] & 0x3F);
-            i += 2;
-        } else if ((u8s[i] & 0xF0) == 0xE0 && i + 2 < u8s.size()) {
-            // 3-byte encoding
-            codepoint = ((u8s[i] & 0x0F) << 12) | 
-                       ((u8s[i+1] & 0x3F) << 6) | 
-                        (u8s[i+2] & 0x3F);
-            i += 3;
-        } else if ((u8s[i] & 0xF8) == 0xF0 && i + 3 < u8s.size()) {
-            // 4-byte encoding
-            codepoint = ((u8s[i] & 0x07) << 18) | 
-                       ((u8s[i+1] & 0x3F) << 12) | 
-                       ((u8s[i+2] & 0x3F) << 6) | 
-                        (u8s[i+3] & 0x3F);
-            i += 4;
+        internal::DecodeResult decoded = internal::decode_one_utf8(u8s.substr(i));
+        if (decoded.is_valid) {
+            result.push_back(decoded.codepoint);
         } else {
-            // Invalid sequence
+            is_valid = false;
             switch(errorPolicy) {
                 case ErrorPolicy::SkipInvalidValues:
-                    is_valid = false;
-                    continue;
+                    break;
                 case ErrorPolicy::StopOnFirstError:
                     return {result, false};
                 case ErrorPolicy::UseReplacementCharacter:
-                    is_valid = false;
-                    codepoint = wutils::detail::REPLACEMENT_CHAR_32;
-            }
-        }
-        
-        if (codepoint <= 0x10FFFF) {
-            result.push_back(codepoint);
-        } else {
-            // Invalid codepoint
-            switch(errorPolicy) {
-                case ErrorPolicy::SkipInvalidValues:
-                    is_valid = false;
-                    continue;
-                case ErrorPolicy::StopOnFirstError:
-                    return {result, false};
-                case ErrorPolicy::UseReplacementCharacter:
-                    is_valid = false;
                     result.push_back(wutils::detail::REPLACEMENT_CHAR_32);
+                    break;
             }
         }
+        i += decoded.consumed_units;
     }
     return {result, is_valid};
 }
@@ -588,49 +559,25 @@ wutils::ConversionResult<std::u32string> wutils::detail::u32(const std::u8string
 wutils::ConversionResult<std::u32string> wutils::detail::u32(const std::u16string_view u16s, const ErrorPolicy errorPolicy) {
     bool is_valid = true;
     std::u32string result;
-    result.reserve(u16s.size()); // Initial capacity
+    result.reserve(u16s.size());
     
-    for (size_t i = 0; i < u16s.size(); ++i) {
-        char32_t codepoint = 0; // initialize to 0 to shut up "uninitialized variable" error due to SkipInvalidValues branch
-        
-        // Check for surrogate pair
-        if (i + 1 < u16s.size() && 
-            (u16s[i] >= 0xD800 && u16s[i] <= 0xDBFF) && 
-            (u16s[i+1] >= 0xDC00 && u16s[i+1] <= 0xDFFF)) {
-            // Decode surrogate pair
-            codepoint = 0x10000 + (((u16s[i] - 0xD800) << 10) | (u16s[i+1] - 0xDC00));
-            ++i; // Skip the low surrogate on the next iteration
-        } else if (u16s[i] >= 0xD800 && u16s[i] <= 0xDFFF) {
-            // Unpaired surrogate
+    for (size_t i = 0; i < u16s.size(); ) {
+        internal::DecodeResult decoded = internal::decode_one_utf16(u16s.substr(i));
+        if (decoded.is_valid) {
+            result.push_back(decoded.codepoint);
+        } else {
+            is_valid = false;
             switch(errorPolicy) {
                 case ErrorPolicy::SkipInvalidValues:
-                    is_valid = false;
-                    continue;
+                    break;
                 case ErrorPolicy::StopOnFirstError:
                     return {result, false};
                 case ErrorPolicy::UseReplacementCharacter:
-                    is_valid = false;
-                    codepoint = wutils::detail::REPLACEMENT_CHAR_32;
-            }
-        } else {
-            codepoint = u16s[i];
-        }
-        
-        if (codepoint <= 0x10FFFF) {
-            result.push_back(codepoint);
-        } else {
-            // Invalid codepoint
-            switch(errorPolicy) {
-                case ErrorPolicy::SkipInvalidValues:
-                    is_valid = false;
-                    continue;
-                case ErrorPolicy::StopOnFirstError:
-                    return {result, false};
-                case ErrorPolicy::UseReplacementCharacter:
-                    is_valid = false;
                     result.push_back(wutils::detail::REPLACEMENT_CHAR_32);
+                    break;
             }
         }
+        i += decoded.consumed_units;
     }
     return {result, is_valid};
 }
