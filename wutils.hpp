@@ -216,13 +216,23 @@ To convert_implicitly(From from) {
     if constexpr (std::is_same_v<typename From::value_type, typename To::value_type>) {
         return To(from);
     } else {
-#ifdef _MSC_VER // MSVC specific optimization
-         return To(std::from_range, from);
-#else // Generic conversion
-        return from | std::ranges::views::transform([](typename From::value_type wc) {
-            return static_cast<typename To::value_type>(wc);
-        }) | std::ranges::to<To>();
-#endif
+#if defined(_MSC_VER) // would be nice to know the exact minimum _MSC_VER where this works
+        return To(std::from_range, from);
+    #elif __cpp_lib_ranges_to_container >= 202202L
+        return from
+            | std::ranges::views::transform([](typename From::value_type wc) {
+                  return static_cast<typename To::value_type>(wc);
+              })
+            | std::ranges::to<To>();
+    #else
+        // C++20 fallback without ranges
+        To out;
+        out.reserve(from.size());
+        for (auto it = from.cbegin(); it != from.cend(); ++it) {
+            out.push_back(static_cast<typename To::value_type>(*it));
+        }
+        return out;
+    #endif
     }
 };
 
