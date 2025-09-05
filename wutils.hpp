@@ -210,7 +210,7 @@ inline constexpr bool has_specialized_conversion = specialized_conversion<From, 
 
 template<string_view_like From , string_like To>
 requires is_implicitly_convertible<typename From::value_type, typename To::value_type>
-To convertImplicitly(From from) {
+To convert_implicitly(From from) {
     if constexpr (std::is_same_v<typename From::value_type, typename To::value_type>) {
         return To(from);
     } else {
@@ -230,7 +230,7 @@ ConversionResult<ustring> convert_to_ustring(From from, ErrorPolicy errorPolicy)
     if constexpr (std::is_same_v<FromChar, uchar_t>) {
         return {ustring(from), true};
     } else if constexpr (std::is_same_v<FromChar, wchar_t>) {
-        return {detail::convertImplicitly<From, ustring>(from), true};
+        return {detail::convert_implicitly<From, ustring>(from), true};
     } else if constexpr (std::is_same_v<uchar_t, char8_t>) {
         return detail::u8(from, errorPolicy);
     } else if constexpr (std::is_same_v<uchar_t, char16_t>) {
@@ -246,7 +246,7 @@ ConversionResult<To> convert_from_ustring(ustring_view from, ErrorPolicy errorPo
     if constexpr (std::is_same_v<uchar_t, ToChar>) {
         return {To(from), true};
     } else if constexpr (std::is_same_v<ToChar, wchar_t>) {
-        return {detail::convertImplicitly<ustring_view, To>(from), true};
+        return {detail::convert_implicitly<ustring_view, To>(from), true};
     } else if constexpr (std::is_same_v<ToChar, char8_t>) {
         return detail::u8(from, errorPolicy);
     } else if constexpr (std::is_same_v<ToChar, char16_t>) {
@@ -265,18 +265,22 @@ ConversionResult<To> do_intermediate_conversion(From from, ErrorPolicy errorPoli
 
 } // namespace detail
 
-// "Dispatch" our functions based on type
+// "Dispatch" our functions based on conversion type //
+
+// General case: convert via intermediate: From -> ustring -> To
 template<string_view_like From, string_like To>
 inline ConversionResult<To> convert(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return detail::do_intermediate_conversion<From, To>(from, errorPolicy);
 }
 
+// Implicit case: convert via static_cast or copying, e.g: Nstring <-> Nstring, string <-> u8string, wstring <-> ustring
 template<string_view_like From, string_like To>
 requires detail::is_implicitly_convertible<From, To>
 inline ConversionResult<To> convert(From from, [[maybe_unused]] ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
-    return {detail::convertImplicitly<From, To>(from), true};
+    return {detail::convert_implicitly<From, To>(from), true};
 }
 
+// Specialized conversion: conversions that are directly implemented: u8 <-> u16, u16 <-> u32, etc.
 template<string_view_like From, string_like To>
 requires detail::has_specialized_conversion<From, To>
 inline ConversionResult<To> convert(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
@@ -285,19 +289,19 @@ inline ConversionResult<To> convert(From from, ErrorPolicy errorPolicy = ErrorPo
 
 // Simple conversions to avoid ConversionResult
 inline ustring ws_to_us(std::wstring_view from) {
-    return detail::convertImplicitly<std::wstring_view, ustring>(from);
+    return detail::convert_implicitly<std::wstring_view, ustring>(from);
 }
 
 inline std::wstring us_to_ws(ustring_view from) {
-    return detail::convertImplicitly<ustring_view, std::wstring>(from);
+    return detail::convert_implicitly<ustring_view, std::wstring>(from);
 }
 
 inline std::u8string s_to_u8s(std::string_view from) {
-    return detail::convertImplicitly<std::string_view, std::u8string>(from);
+    return detail::convert_implicitly<std::string_view, std::u8string>(from);
 }
 
 inline std::string u8s_to_s(std::u8string_view from) {
-    return detail::convertImplicitly<std::u8string_view, std::string>(from);
+    return detail::convert_implicitly<std::u8string_view, std::string>(from);
 }
 
 // "Advanced" conversions that require ConversionResult
