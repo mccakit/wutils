@@ -29,6 +29,7 @@ Wutils also adds a simple conversion between `std::string` and `std::u8string`, 
 This allows you to directly convert a `std::wstring` into a `ustring` or a `std::string` to a `std::u8string`, but what if you wanted to convert it into one specific UTF string type, such as `std::u32string`?
 
 To achieve this, wutils allows conversion from and to any supported string type easily using the following conversion strategy:
+
 <img width="480" height="360" alt="wutils-conversion-strategy" src="https://github.com/user-attachments/assets/873db7f7-335c-49aa-a543-60cc174c7423" />
 
 For example, if you are on a Windows (where `ustring = std::u16string`) sytem and wanted to convert a `std::wstring` into a `std::u32string`, wutils would do the following conversions:
