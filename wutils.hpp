@@ -2,6 +2,7 @@
 
 #include <wchar.h>
 #include <uchar.h>
+#include <concepts>
 #include <string>
 #include <string_view>
 #include <ranges>
@@ -53,6 +54,31 @@ inline void wprintln(const std::wstring_view ws) {
 }
 #endif
 
+template<typename T>
+concept string_view_like = requires(const T& t) {
+    typename T::value_type;
+    typename T::const_iterator;
+
+    { t.data() } -> std::same_as<const typename T::value_type*>;
+    { t.size() } -> std::same_as<std::size_t>;
+    { t.cbegin() } -> std::same_as<typename T::const_iterator>;
+    { t.cend() } -> std::same_as<typename T::const_iterator>;
+    { *t.cbegin() } -> std::same_as<const typename T::value_type&>;
+};
+
+template<typename T>
+concept string_like = string_view_like<T> && requires(T t) {
+    typename T::iterator;
+
+    { t.begin() } -> std::same_as<typename T::iterator>;
+    { t.end() } -> std::same_as<typename T::iterator>;
+    { *t.begin() } -> std::same_as<typename T::value_type&>;
+    { t.append(t) };
+    { t.push_back(std::declval<typename T::value_type>()) };
+};
+
+ 
+
 // Determines course of action when encountered with an invalid sequence
 enum class ErrorPolicy {
     UseReplacementCharacter, // Insert replacement character '�' on error
@@ -60,7 +86,7 @@ enum class ErrorPolicy {
     StopOnFirstError // Stop conversion on the first invalid value, return partial conversion
 };
 
-template<typename T>
+template<string_like T>
 struct ConversionResult {
     T value;
     bool is_valid;
@@ -77,31 +103,28 @@ static constexpr inline const std::u8string_view REPLACEMENT_CHAR_8 = u8"�";
 static constexpr inline const char16_t REPLACEMENT_CHAR_16 = u'�';
 static constexpr inline const char32_t REPLACEMENT_CHAR_32 = U'�';
 
+// ===== Implicit Conversions =====
 template<typename FromChar, typename ToChar>
-struct IsImplicitlyConvertible {
-    static constexpr bool value = false;
-};
+struct implicit_conversion : std::false_type{};
+template<>
+struct implicit_conversion<char, char8_t> : std::true_type{};
 
 template<>
-struct IsImplicitlyConvertible<char, char8_t> {
-    static constexpr bool value = true;
-};
+struct implicit_conversion<char8_t, char> : std::true_type{};
 
 template<>
-struct IsImplicitlyConvertible<char8_t, char> {
-    static constexpr bool value = true;
-};
+struct implicit_conversion<wchar_t, uchar_t> : std::true_type{};
 
 template<>
-struct IsImplicitlyConvertible<wchar_t, uchar_t> {
-    static constexpr bool value = true;
-};
+struct implicit_conversion<uchar_t, wchar_t> : std::true_type{};
 
-template<>
-struct IsImplicitlyConvertible<uchar_t, wchar_t> {
-    static constexpr bool value = true;
-};
+template<typename CharT>
+struct implicit_conversion<CharT, CharT> : std::true_type{};
 
+template<typename From, typename To>
+inline constexpr bool is_implicitly_convertible = implicit_conversion<From, To>::value;
+
+// ===== Specialized Conversions =====
 inline ConversionResult<std::u8string> u8(const std::u8string_view u8s,
     [[maybe_unused]] const ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return {std::u8string(u8s), true};
@@ -129,117 +152,178 @@ inline ConversionResult<std::u32string> u32(const std::u32string_view u32s,
     return {std::u32string(u32s), true};
 }
 
-template<typename FromChar, typename ToChar>
-requires IsImplicitlyConvertible<FromChar, ToChar>::value
-std::basic_string<ToChar> convertImplicitly(std::basic_string_view<FromChar> from) {
-#ifdef _MSC_VER // MSVC specific optimization
-         return std::basic_string<ToChar>(std::from_range, from);
-#else // Generic conversion
-        return from | std::ranges::views::transform([](FromChar wc) {
-            return static_cast<ToChar>(wc);
-        }) | std::ranges::to<std::basic_string<ToChar>>();
-#endif
+template<string_view_like From, string_like To>
+struct specialized_conversion {
+    static inline constexpr bool value = false;
 };
 
-template<typename FromChar>
-ConversionResult<ustring> convert_to_ustring(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy) {
-    if constexpr (std::is_same_v<uchar_t, char8_t>) {
-        return u8(from, errorPolicy);
-    } else if constexpr (std::is_same_v<uchar_t, char16_t>) {
-        return u16(from, errorPolicy);
-    } else if constexpr (std::is_same_v<uchar_t, char32_t>) {
-        return u32(from, errorPolicy);
+template<>
+struct specialized_conversion<std::u16string_view, std::u8string> {
+    static inline constexpr bool value = true;
+    inline ConversionResult<std::u8string> convert(const std::u16string_view u16s, ErrorPolicy errorPolicy) {
+        return detail::u8(u16s, errorPolicy);
+    }
+};
+
+template<>
+struct specialized_conversion<std::u32string_view, std::u8string> {
+    static inline constexpr bool value = true;
+    inline ConversionResult<std::u8string> convert(const std::u32string_view u32s, ErrorPolicy errorPolicy) {
+        return detail::u8(u32s, errorPolicy);
+    }
+};
+
+template<>
+struct specialized_conversion<std::u8string_view, std::u16string> {
+    static inline constexpr bool value = true;
+    inline ConversionResult<std::u16string> convert(const std::u8string_view u8s, ErrorPolicy errorPolicy) {
+        return detail::u16(u8s, errorPolicy);
+    }
+};
+
+template<>
+struct specialized_conversion<std::u32string_view, std::u16string> {
+    static inline constexpr bool value = true;
+    inline ConversionResult<std::u16string> convert(const std::u32string_view u32s, ErrorPolicy errorPolicy) {
+        return detail::u16(u32s, errorPolicy);
+    }
+};
+
+template<>
+struct specialized_conversion<std::u8string_view, std::u32string> {
+    static inline constexpr bool value = true;
+    inline ConversionResult<std::u32string> convert(const std::u8string_view u8s, ErrorPolicy errorPolicy) {
+        return detail::u32(u8s, errorPolicy);
+    }
+};
+
+template<>
+struct specialized_conversion<std::u16string_view, std::u32string> {
+    static inline constexpr bool value = true;
+    inline ConversionResult<std::u32string> convert(const std::u16string_view u16s, ErrorPolicy errorPolicy) {
+        return detail::u32(u16s, errorPolicy);
+    }
+};
+
+template<string_view_like From, string_like To>
+inline constexpr bool has_specialized_conversion = specialized_conversion<From, To>::value;
+
+template<string_view_like From , string_like To>
+requires is_implicitly_convertible<typename From::value_type, typename To::value_type>
+To convertImplicitly(From from) {
+    if constexpr (std::is_same_v<typename From::value_type, typename To::value_type>) {
+        return To(from);
+    } else {
+#ifdef _MSC_VER // MSVC specific optimization
+         return To(std::from_range, from);
+#else // Generic conversion
+        return from | std::ranges::views::transform([](From::value_type wc) {
+            return static_cast<To::value_type>(wc);
+        }) | std::ranges::to<To>();
+#endif
+    }
+};
+
+template<string_view_like From>
+ConversionResult<ustring> convert_to_ustring(From from, ErrorPolicy errorPolicy) {
+    using FromChar = From::value_type;
+    if constexpr (std::is_same_v<FromChar, uchar_t>) {
+        return {ustring(from), true};
     } else if constexpr (std::is_same_v<FromChar, wchar_t>) {
-        return {convertImplicitly<wchar_t, uchar_t>(from), true};
+        return {detail::convertImplicitly<From, ustring>(from), true};
+    } else if constexpr (std::is_same_v<uchar_t, char8_t>) {
+        return detail::u8(from, errorPolicy);
+    } else if constexpr (std::is_same_v<uchar_t, char16_t>) {
+        return detail::u16(from, errorPolicy);
+    } else if constexpr (std::is_same_v<uchar_t, char32_t>) {
+        return detail::u32(from, errorPolicy);
     }
 }
 
-template<typename ToChar>
-ConversionResult<std::basic_string<ToChar>> convert_from_ustring(ustring_view from, ErrorPolicy errorPolicy) {
-    if constexpr (std::is_same_v<ToChar, char8_t>) {
-        return u8(from, errorPolicy);
-    } else if constexpr (std::is_same_v<ToChar, char16_t>) {
-        return u16(from, errorPolicy);
-    } else if constexpr (std::is_same_v<ToChar, char32_t>) {
-        return u32(from, errorPolicy);
+template<string_like To>
+ConversionResult<To> convert_from_ustring(ustring_view from, ErrorPolicy errorPolicy) {
+    using ToChar = To::value_type;
+    if constexpr (std::is_same_v<uchar_t, ToChar>) {
+        return {To(from), true};
     } else if constexpr (std::is_same_v<ToChar, wchar_t>) {
-        return {convertImplicitly<uchar_t, wchar_t>(from), true};
-    }
+        return {detail::convertImplicitly<ustring_view, To>(from), true};
+    } else if constexpr (std::is_same_v<ToChar, char8_t>) {
+        return detail::u8(from, errorPolicy);
+    } else if constexpr (std::is_same_v<ToChar, char16_t>) {
+        return detail::u16(from, errorPolicy);
+    } else if constexpr (std::is_same_v<ToChar, char32_t>) {
+        return detail::u32(from, errorPolicy);
+    } 
 }
 
-template<typename ToChar>
-ConversionResult<std::basic_string<ToChar>> propagateError(ConversionResult<ustring> inner, ErrorPolicy errorPolicy) {
-    ConversionResult<std::basic_string<ToChar>> last = convert_from_ustring<ToChar>(inner.value, errorPolicy);
-    return {last.value, (inner.is_valid && last.is_valid)};
+template<string_view_like From, string_like To>
+ConversionResult<To> do_intermediate_conversion(From from, ErrorPolicy errorPolicy) {
+    ConversionResult<ustring> inner = detail::convert_to_ustring<From>(from, errorPolicy);
+    ConversionResult<To> outer = detail::convert_from_ustring<To>(inner.value, errorPolicy);
+    return {outer.value, (inner.is_valid && outer.is_valid)};
 }
 
 } // namespace detail
-// Main "dispatcher"-like convert template
-// It works like this because it needs to handle cases where we need an intermediate conversion to uchar_t
-// E.g to convert wchar_t to char32_t on a Windows system (where uchar_t = char16_t), we need to:
-// 1. Convert wchar_t to char16_t using convertImplicitly
-// 2. Convert char16_t to char32_t using detail::u32(u16string_view)
-// Same thing happens in the opposite direction (char32_t to wchar_t)
-template<typename FromChar, typename ToChar>
-ConversionResult<std::basic_string<ToChar>> convert(std::basic_string_view<FromChar> from, 
-        ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
-    if constexpr (std::is_same_v<FromChar, ToChar>) {
-        return {std::basic_string<ToChar>(from), true};
-    }
-    else if constexpr (detail::IsImplicitlyConvertible<FromChar, ToChar>::value) {
-        return {detail::convertImplicitly<FromChar, ToChar>(from), true};
-    } else if constexpr (std::is_same_v<ToChar, char8_t>) {
-        return detail::propagateError<char8_t>(detail::convert_to_ustring<FromChar>(from, errorPolicy), errorPolicy);
-    } else if constexpr (std::is_same_v<ToChar, char16_t>) {
-        return detail::propagateError<char16_t>(detail::convert_to_ustring<FromChar>(from, errorPolicy), errorPolicy);
-    } else if constexpr (std::is_same_v<ToChar, char32_t>) {
-        return detail::propagateError<char32_t>(detail::convert_to_ustring<FromChar>(from, errorPolicy), errorPolicy);
-    } else if constexpr (std::is_same_v<ToChar, wchar_t>) {
-        return detail::propagateError<wchar_t>(detail::convert_to_ustring<FromChar>(from, errorPolicy), errorPolicy);
-    }
+
+// "Dispatch" our functions based on type
+template<string_view_like From, string_like To>
+inline ConversionResult<To> convert(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return detail::do_intermediate_conversion<From, To>(from, errorPolicy);
+}
+
+template<string_view_like From, string_like To>
+requires detail::is_implicitly_convertible<From, To>
+inline ConversionResult<To> convert(From from, [[maybe_unused]] ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return {detail::convertImplicitly<From, To>(from), true};
+}
+
+template<string_view_like From, string_like To>
+requires detail::has_specialized_conversion<From, To>
+inline ConversionResult<To> convert(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return detail::specialized_conversion<From, To>{}.convert(from, errorPolicy);
 }
 
 // Simple conversions to avoid ConversionResult
 inline ustring ws_to_us(std::wstring_view from) {
-    return detail::convertImplicitly<wchar_t, uchar_t>(from);
+    return detail::convertImplicitly<std::wstring_view, ustring>(from);
 }
 
 inline std::wstring us_to_ws(ustring_view from) {
-    return detail::convertImplicitly<uchar_t, wchar_t>(from);
+    return detail::convertImplicitly<ustring_view, std::wstring>(from);
 }
 
 inline std::u8string s_to_u8s(std::string_view from) {
-    return detail::convertImplicitly<char, char8_t>(from);
+    return detail::convertImplicitly<std::string_view, std::u8string>(from);
 }
 
 inline std::string u8s_to_s(std::u8string_view from) {
-    return detail::convertImplicitly<char8_t, char>(from);
+    return detail::convertImplicitly<std::u8string_view, std::string>(from);
 }
 
 // "Advanced" conversions that require ConversionResult
-template<typename FromChar>
-inline ConversionResult<std::u8string> u8(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
-    return convert<FromChar, char8_t>(from, errorPolicy);
+template<string_view_like From>
+inline ConversionResult<std::u8string> u8(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return convert<From, std::u8string>(from, errorPolicy);
 }
 
-template<typename FromChar>
-inline ConversionResult<std::u16string> u16(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
-    return convert<FromChar, char16_t>(from, errorPolicy);
+template<string_view_like From>
+inline ConversionResult<std::u16string> u16(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return convert<From, std::u16string>(from, errorPolicy);
 }
 
-template<typename FromChar>
-inline ConversionResult<std::u32string> u32(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
-    return convert<FromChar, char32_t>(from, errorPolicy);
+template<string_view_like From>
+inline ConversionResult<std::u32string> u32(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return convert<From, std::u32string>(from, errorPolicy);
 }
 
-template<typename FromChar>
-inline ConversionResult<ustring> us(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
-    return convert<FromChar, uchar_t>(from, errorPolicy);
+template<string_view_like From>
+inline ConversionResult<ustring> us(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return convert<From, ustring>(from, errorPolicy);
 }
 
-template<typename FromChar>
-inline ConversionResult<std::wstring> ws(std::basic_string_view<FromChar> from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
-    return convert<FromChar, wchar_t>(from, errorPolicy);
+template<string_view_like From>
+inline ConversionResult<std::wstring> ws(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
+    return convert<From, std::wstring>(from, errorPolicy);
 }
 
 int uswidth(const std::u8string_view u8s);
