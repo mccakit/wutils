@@ -7,6 +7,8 @@
 #include <string_view>
 #include <ranges>
 #include <expected>
+#include <type_traits>
+#include <utility>
 #ifndef _WIN32
 #include <iostream>
 #endif
@@ -27,8 +29,8 @@ static_assert(
     "Exactly one wchar_t type must match"
 );
 
-// Assume char is char8_t
-static_assert(sizeof(char) == sizeof(char8_t), "Invalid char type assumption");
+// We assume char is char8_t, and treat std::string as UTF8
+// Note: on windows using MSVC, make sure you compile with the `/utf8` flag
 
 // Determine the underlying type for ustring at compile-time
 
@@ -217,8 +219,8 @@ To convert_implicitly(From from) {
 #ifdef _MSC_VER // MSVC specific optimization
          return To(std::from_range, from);
 #else // Generic conversion
-        return from | std::ranges::views::transform([](From::value_type wc) {
-            return static_cast<To::value_type>(wc);
+        return from | std::ranges::views::transform([](typename From::value_type wc) {
+            return static_cast<typename To::value_type>(wc);
         }) | std::ranges::to<To>();
 #endif
     }
@@ -226,7 +228,7 @@ To convert_implicitly(From from) {
 
 template<string_view_like From>
 ConversionResult<ustring> convert_to_ustring(From from, ErrorPolicy errorPolicy) {
-    using FromChar = From::value_type;
+    using FromChar = typename From::value_type;
     if constexpr (std::is_same_v<FromChar, uchar_t>) {
         return {ustring(from), true};
     } else if constexpr (std::is_same_v<FromChar, wchar_t>) {
@@ -242,7 +244,7 @@ ConversionResult<ustring> convert_to_ustring(From from, ErrorPolicy errorPolicy)
 
 template<string_like To>
 ConversionResult<To> convert_from_ustring(ustring_view from, ErrorPolicy errorPolicy) {
-    using ToChar = To::value_type;
+    using ToChar = typename To::value_type;
     if constexpr (std::is_same_v<uchar_t, ToChar>) {
         return {To(from), true};
     } else if constexpr (std::is_same_v<ToChar, wchar_t>) {
