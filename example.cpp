@@ -25,7 +25,7 @@ int main() {
     // You can also do a checked conversion to specific UTF string types
     // (see wutils.hpp for explanation of return type)
     wutils::ConversionResult<std::u32string> conv = 
-    wutils::u32(wstr, wutils::ErrorPolicy::UseReplacementCharacter);
+    wutils::u32s(wstr, wutils::ErrorPolicy::UseReplacementCharacter);
     
     if (conv) { 
         do_something_u32(*conv);

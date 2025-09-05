@@ -296,25 +296,21 @@ int wutils::uswidth(const std::u32string_view u32s) {
 }
 
 int wutils::uswidth(const std::u16string_view u16s) {
-    wutils::ConversionResult<std::u32string> u32s = wutils::u32(u16s, wutils::ErrorPolicy::SkipInvalidValues);
+    wutils::ConversionResult<std::u32string> u32s = wutils::u32s(u16s, wutils::ErrorPolicy::SkipInvalidValues);
     return internal::mk_wcswidth(u32s->data(), u32s->size());
 }
 
 int wutils::uswidth(const std::u8string_view u8s) {
-    wutils::ConversionResult<std::u32string> u32s = wutils::u32(u8s, wutils::ErrorPolicy::SkipInvalidValues);
+    wutils::ConversionResult<std::u32string> u32s = wutils::u32s(u8s, wutils::ErrorPolicy::SkipInvalidValues);
     return internal::mk_wcswidth(u32s->data(), u32s->size());
 }
 
 #ifdef _WIN32
-void wutils::wprint(const std::wstring_view ws) {
+void wutils::wcout(const std::wstring_view ws) {
     WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
 }
-
-void wutils::wprintln(const std::wstring_view ws) {
-    HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
-    WriteConsoleW(console, ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
-
-    WriteConsoleW(console, L"\n", 1, NULL, NULL);
+void wutils::wcerr(const std::wstring_view ws) {
+    WriteConsoleW(GetStdHandle(STD_ERROR_HANDLE), ws.data(), static_cast<DWORD>(ws.size()), NULL, NULL);
 }
 #endif
 

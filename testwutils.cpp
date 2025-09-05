@@ -43,9 +43,9 @@ template<typename From, typename To, typename Func>
 void test_conversion(Func func, From in) {
     wutils::ConversionResult<To> result = func(in, wutils::ErrorPolicy::UseReplacementCharacter);
     ASSERT_TRUE(result);
-    auto w_in = wutils::ws<From>(in);
+    wutils::ConversionResult<std::wstring> w_in = wutils::ws<From>(in);
     ASSERT_TRUE(w_in);
-    auto w_out = wutils::ws<To>(*result);
+    wutils::ConversionResult<std::wstring> w_out = wutils::ws<To>(result.value);
     ASSERT_TRUE(w_out);
 
     ASSERT_EQ(*w_in, *w_out);
@@ -139,9 +139,9 @@ int main() {
         }
 
         // Wchar to ustrings
-        test_conversion<std::wstring, std::u8string>(wutils::u8<std::wstring>, w_in);
-        test_conversion<std::wstring, std::u16string>(wutils::u16<std::wstring>, w_in);
-        test_conversion<std::wstring, std::u32string>(wutils::u32<std::wstring>, w_in);
+        test_conversion<std::wstring, std::u8string>(wutils::u8s<std::wstring>, w_in);
+        test_conversion<std::wstring, std::u16string>(wutils::u16s<std::wstring>, w_in);
+        test_conversion<std::wstring, std::u32string>(wutils::u32s<std::wstring>, w_in);
         test_conversion<std::wstring, ustring>(wutils::us<std::wstring>, w_in);
 
         // Ustrings to wchar
@@ -151,20 +151,20 @@ int main() {
         test_conversion<ustring, std::wstring>(wutils::ws<ustring>, u_out);
 
         // Between ustrings
-        test_conversion<std::u8string, std::u8string>(wutils::u8<std::u8string>, u8_in);
-        test_conversion<std::u16string, std::u8string>(wutils::u8<std::u16string>, u16_in);
-        test_conversion<std::u32string, std::u8string>(wutils::u8<std::u32string>, u32_in);
-        test_conversion<ustring, std::u8string>(wutils::u8<ustring>, u_out);
+        test_conversion<std::u8string, std::u8string>(wutils::u8s<std::u8string>, u8_in);
+        test_conversion<std::u16string, std::u8string>(wutils::u8s<std::u16string>, u16_in);
+        test_conversion<std::u32string, std::u8string>(wutils::u8s<std::u32string>, u32_in);
+        test_conversion<ustring, std::u8string>(wutils::u8s<ustring>, u_out);
 
-        test_conversion<std::u8string, std::u16string>(wutils::u16<std::u8string>, u8_in);
-        test_conversion<std::u16string, std::u16string>(wutils::u16<std::u16string>, u16_in);
-        test_conversion<std::u32string, std::u16string>(wutils::u16<std::u32string>, u32_in);
-        test_conversion<ustring, std::u16string>(wutils::u16<ustring>, u_out);
+        test_conversion<std::u8string, std::u16string>(wutils::u16s<std::u8string>, u8_in);
+        test_conversion<std::u16string, std::u16string>(wutils::u16s<std::u16string>, u16_in);
+        test_conversion<std::u32string, std::u16string>(wutils::u16s<std::u32string>, u32_in);
+        test_conversion<ustring, std::u16string>(wutils::u16s<ustring>, u_out);
 
-        test_conversion<std::u8string, std::u32string>(wutils::u32<std::u8string>, u8_in);
-        test_conversion<std::u16string, std::u32string>(wutils::u32<std::u16string>, u16_in);
-        test_conversion<std::u32string, std::u32string>(wutils::u32<std::u32string>, u32_in);
-        test_conversion<ustring, std::u32string>(wutils::u32<ustring>, u_out);
+        test_conversion<std::u8string, std::u32string>(wutils::u32s<std::u8string>, u8_in);
+        test_conversion<std::u16string, std::u32string>(wutils::u32s<std::u16string>, u16_in);
+        test_conversion<std::u32string, std::u32string>(wutils::u32s<std::u32string>, u32_in);
+        test_conversion<ustring, std::u32string>(wutils::u32s<ustring>, u_out);
 
         test_conversion<std::u8string, ustring>(wutils::us<std::u8string>, u8_in);
         test_conversion<std::u16string, ustring>(wutils::us<std::u16string>, u16_in);
