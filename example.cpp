@@ -11,7 +11,7 @@ void do_something_u32(std::u32string u32s) { (void) u32s; }
 void do_something_w(std::wstring ws) { (void) ws; }
 
 int main() {
-    using wutils::ustring; // Type resolved at compile time based on sizeof(wchar), either std::u16string or std::32string
+    using wutils::ustring; // Type resolved at compile time based on sizeof(wchar), either std::u16string or std::u32string
     
     std::wstring wstr = L"Hello, World";
     ustring ustr = wutils::ws_to_us(wstr); // Convert to UTF string type
