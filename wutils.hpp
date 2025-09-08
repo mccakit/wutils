@@ -2,13 +2,12 @@
 
 #include <wchar.h>
 #include <uchar.h>
-#include <concepts>
 #include <string>
 #include <string_view>
+#if defined(__cpp_lib_ranges_to_container) && __cpp_lib_ranges_to_container >= 202202L
 #include <ranges>
-#include <expected>
+#endif
 #include <type_traits>
-#include <utility>
 #ifndef _WIN32
 #include <iostream>
 #endif
