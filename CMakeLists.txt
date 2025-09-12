@@ -29,3 +29,9 @@ set(EXAMPLE_SOURCES wutils.cpp example.cpp)
 # Add executable target
 add_executable(testwutils ${TEST_SOURCES})
 add_executable(example ${EXAMPLE_SOURCES})
+
+# Enable testing with CTest
+enable_testing()
+
+# Add the test executable to CTest
+add_test(NAME testwutils COMMAND testwutils)
