@@ -77,40 +77,40 @@ TEST_CASE("String conversions") {
 
 TEST_CASE("Error Handling") {
     SUBCASE("Invalid UTF-8 sequences") {
-        const unsigned char invalid_u8_data[] = {
-            'v', 'a', 'l', 'i', 'd', '_', 's', 't', 'a', 'r', 't', '_',
+        const char8_t invalid_u8_data[] = {
+            's', 't', 'a', 'r', 't', '_',
             0xC0, 0xAF, // Overlong '/' sequence
-            '_', 'i', 'n', 'v', 'a', 'l', 'i', 'd', '_', 'm', 'i', 'd', 'd', 'l', 'e', '_',
+            '_', 'm', 'i', 'd', 'd', 'l', 'e', '_',
             0xFF,     // Invalid byte
             '_', 'e', 'n', 'd'
         };
-        std::u8string invalid_u8(reinterpret_cast<const char8_t*>(invalid_u8_data), sizeof(invalid_u8_data));
+        std::u8string invalid_u8(invalid_u8_data, sizeof(invalid_u8_data) / sizeof(char8_t));
 
         SUBCASE("UseReplacementCharacter") {
             auto res = wutils::u32s(invalid_u8, wutils::ErrorPolicy::UseReplacementCharacter);
             CHECK_FALSE(res.is_valid);
-            const std::u32string expected = U"valid_start_"s + wutils::detail::REPLACEMENT_CHAR_32 + wutils::detail::REPLACEMENT_CHAR_32 + U"_invalid_middle_" + wutils::detail::REPLACEMENT_CHAR_32 + U"_end";
+            const std::u32string expected = U"start_"s + wutils::detail::REPLACEMENT_CHAR_32 + wutils::detail::REPLACEMENT_CHAR_32 + U"_middle_" + wutils::detail::REPLACEMENT_CHAR_32 + U"_end";
             CHECK(res.value == expected);
         }
 
         SUBCASE("SkipInvalidValues") {
             auto res = wutils::u32s(invalid_u8, wutils::ErrorPolicy::SkipInvalidValues);
             CHECK_FALSE(res.is_valid);
-            CHECK(res.value == U"valid_start__invalid_middle__end");
+            CHECK(res.value == U"start__middle__end");
         }
 
         SUBCASE("StopOnFirstError") {
             auto res = wutils::u32s(invalid_u8, wutils::ErrorPolicy::StopOnFirstError);
             CHECK_FALSE(res.is_valid);
-            CHECK(res.value == U"valid_start_");
+            CHECK(res.value == U"start_");
         }
     }
 
     SUBCASE("Invalid UTF-16 sequences") {
         const char16_t invalid_u16_data[] = {
-            u'v', u'a', u'l', u'i', u'd', u'_',
+            u's', u't', u'a', u'r', u't', u'_',
             0xD800, // Unpaired high surrogate
-            u'_', u'i', u'n', u'v', u'a', u'l', u'i', u'd', u'_',
+            u'_', u'm', u'i', u'd', u'd', u'l', u'e', u'_',
             0xDFFF, // Unpaired low surrogate
             u'_', u'e', 'n', 'd'
         };
@@ -119,20 +119,20 @@ TEST_CASE("Error Handling") {
         SUBCASE("UseReplacementCharacter") {
             auto res = wutils::u8s(invalid_u16, wutils::ErrorPolicy::UseReplacementCharacter);
             CHECK_FALSE(res.is_valid);
-            const std::u8string expected = u8"valid_"s + std::u8string(wutils::detail::REPLACEMENT_CHAR_8) + u8"_invalid_" + std::u8string(wutils::detail::REPLACEMENT_CHAR_8) + u8"_end";
+            const std::u8string expected = u8"start_"s + std::u8string(wutils::detail::REPLACEMENT_CHAR_8) + u8"_middle_" + std::u8string(wutils::detail::REPLACEMENT_CHAR_8) + u8"_end";
             CHECK(res.value == expected);
         }
 
         SUBCASE("SkipInvalidValues") {
             auto res = wutils::u8s(invalid_u16, wutils::ErrorPolicy::SkipInvalidValues);
             CHECK_FALSE(res.is_valid);
-            CHECK(res.value == u8"valid__invalid__end");
+            CHECK(res.value == u8"start__middle__end");
         }
 
         SUBCASE("StopOnFirstError") {
             auto res = wutils::u8s(invalid_u16, wutils::ErrorPolicy::StopOnFirstError);
             CHECK_FALSE(res.is_valid);
-            CHECK(res.value == u8"valid_");
+            CHECK(res.value == u8"start_");
         }
     }
 }
