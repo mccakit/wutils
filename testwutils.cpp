@@ -35,30 +35,6 @@ std::array<InputData, 16> test_data {{
 }};
 
 
-void test_width(std::wstring ws, const int expected) {
-    int width = wutils::wswidth(ws);
-    std::wstringstream wss; wss << L"Length of \"" << ws << L"\": " << width;
-    wutils::wprintln(wss.str());
-
-    wutils::wprintln(ws);
-    
-    // Print digits
-    if (width >= 1) {
-        std::wstringstream digits_lines;
-        for (int i = 1; i <= width; i++) {
-            digits_lines << (i % 10);
-        }
-        if (width >= 10) {
-            digits_lines << L'\n';
-            for (int i = 1; i <= width; i++) {
-                digits_lines << ((i % 10) ? L" " : std::to_wstring(i / 10));
-            }
-        }
-        wutils::wprintln(digits_lines.str() + L"\n");
-    }
-    ASSERT_EQ(expected, width);
-}
-
 void run_tests(const int width, const std::u8string u8s) {
     // Test successful width with UTF8 u8string
     ASSERT_EQ(width, wutils::uswidth(u8s));
