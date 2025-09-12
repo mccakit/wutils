@@ -1,10 +1,8 @@
-#include <string>
-#include <string_view>
-#include <array>
-#include <locale>
-
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "doctest.h"
 #include "wutils.hpp"
-#include "test.hpp"
+#include <string>
+#include <array>
 
 using namespace std::string_literals;
 
@@ -13,7 +11,7 @@ struct InputData {
     std::u8string text;
 };
 
-std::array<InputData, 16> test_data {{
+std::array<InputData, 16> test_data{{
     {13, u8"Hello, World!"},
     {6, u8"Résumé"},
     {6, u8"😂😂😂"},
@@ -30,53 +28,55 @@ std::array<InputData, 16> test_data {{
     {6, u8"𪚥𪆷𪃹"},
     {6, u8"𪜈𪜋𪜌"},
     {7, u8"اَلْعَرَبِيَّةُ"}
-
 }};
 
-
-void run_tests(const int width, const std::u8string u8s) {
-    // Test successful width with UTF8 u8string
-    ASSERT_EQ(width, wutils::uswidth(u8s));
-
-    // Test successful conversion and width to UTF16 and UTF32
-    auto u16s = wutils::u16s(u8s);
-    ASSERT_TRUE(u16s);
-    ASSERT_EQ(width, wutils::uswidth(*u16s));
-    
-    auto u32s = wutils::u32s(u8s);
-    ASSERT_TRUE(u32s);
-    ASSERT_EQ(width, wutils::uswidth(*u32s));
-
-    // Convert all back to u8string, check equality
-    auto u8s_from_u16s = wutils::u8s(*u16s);
-    ASSERT_TRUE(u8s_from_u16s);
-    ASSERT_EQ(u8s, *u8s_from_u16s);
-
-    auto u8s_from_u32s = wutils::u8s(*u32s);
-    ASSERT_TRUE(u8s_from_u32s);
-    ASSERT_EQ(u8s, *u8s_from_u32s);
+TEST_CASE("Width calculation") {
+    for (const auto& [width, text] : test_data) {
+        SUBCASE(("Testing width of: " + std::string(text.begin(), text.end())).c_str()) {
+            CHECK(wutils::uswidth(text) == width);
+        }
+    }
 }
 
-int main() {
+TEST_CASE("String conversions") {
+    for (const auto& [width, u8s] : test_data) {
+        SUBCASE(("Testing conversions for: " + std::string(u8s.begin(), u8s.end())).c_str()) {
+            // u8 -> u16 -> u8
+            auto u16s = wutils::u16s(u8s);
+            REQUIRE(u16s);
+            CHECK(wutils::uswidth(*u16s) == width);
+            auto u8s_from_u16s = wutils::u8s(*u16s);
+            REQUIRE(u8s_from_u16s);
+            CHECK(*u8s_from_u16s == u8s);
 
-    // Initialize locale
-    std::locale::global(std::locale(""));
-    std::wcout.imbue(std::locale());
-    wutils::wprintln(L"Running tests...");
+            // u8 -> u32 -> u8
+            auto u32s = wutils::u32s(u8s);
+            REQUIRE(u32s);
+            CHECK(wutils::uswidth(*u32s) == width);
+            auto u8s_from_u32s = wutils::u8s(*u32s);
+            REQUIRE(u8s_from_u32s);
+            CHECK(*u8s_from_u32s == u8s);
 
-    // Test strings from test_data file
-    for (const auto& [width, text] : test_data) {
-        auto ws = wutils::ws(text);
-        ASSERT_TRUE(ws);
-        wutils::wprintln(*ws);
-        run_tests(width, text);
+            // u8 -> wstring -> u8
+            auto ws = wutils::ws(u8s);
+            REQUIRE(ws);
+            CHECK(wutils::wswidth(*ws) == width);
+            auto u8s_from_ws = wutils::u8s(*ws);
+            REQUIRE(u8s_from_ws);
+            CHECK(*u8s_from_ws == u8s);
+
+            // u8 -> string -> u8
+            auto s = wutils::s(u8s);
+            REQUIRE(s);
+            auto u8s_from_s = wutils::u8s(*s);
+            REQUIRE(u8s_from_s);
+            CHECK(*u8s_from_s == u8s);
+        }
     }
+}
 
-    // Test Error Handling
-    {
-        wutils::wprintln(L"Testing Error Handling...");
-
-        // 1. Invalid UTF-8 sequences
+TEST_CASE("Error Handling") {
+    SUBCASE("Invalid UTF-8 sequences") {
         const unsigned char invalid_u8_data[] = {
             'v', 'a', 'l', 'i', 'd', '_', 's', 't', 'a', 'r', 't', '_',
             0xC0, 0xAF, // Overlong '/' sequence
@@ -85,57 +85,54 @@ int main() {
             '_', 'e', 'n', 'd'
         };
         std::u8string invalid_u8(reinterpret_cast<const char8_t*>(invalid_u8_data), sizeof(invalid_u8_data));
-        // Test: UseReplacementCharacter
-        auto res_u8_rep = wutils::u32s(invalid_u8, wutils::ErrorPolicy::UseReplacementCharacter);
-        ASSERT_FALSE(res_u8_rep.is_valid);
-        const std::u32string expected_u32_rep = U"valid_start_"s + wutils::detail::REPLACEMENT_CHAR_32 + wutils::detail::REPLACEMENT_CHAR_32 + U"_invalid_middle_" + wutils::detail::REPLACEMENT_CHAR_32 + U"_end";
-        ASSERT_EQ(res_u8_rep.value, expected_u32_rep);
-        wutils::wprintln(L"Test 8.1 (Invalid UTF-8: UseReplacementCharacter): Passed");
 
-        // Test: SkipInvalidValues
-        auto res_u8_skip = wutils::u32s(invalid_u8, wutils::ErrorPolicy::SkipInvalidValues);
-        ASSERT_FALSE(res_u8_skip.is_valid);
-        ASSERT_EQ(res_u8_skip.value, U"valid_start__invalid_middle__end");
-        wutils::wprintln(L"Test 8.2 (Invalid UTF-8: SkipInvalidValues): Passed");
+        SUBCASE("UseReplacementCharacter") {
+            auto res = wutils::u32s(invalid_u8, wutils::ErrorPolicy::UseReplacementCharacter);
+            CHECK_FALSE(res.is_valid);
+            const std::u32string expected = U"valid_start_"s + wutils::detail::REPLACEMENT_CHAR_32 + wutils::detail::REPLACEMENT_CHAR_32 + U"_invalid_middle_" + wutils::detail::REPLACEMENT_CHAR_32 + U"_end";
+            CHECK(res.value == expected);
+        }
 
-        // Test: StopOnFirstError
-        auto res_u8_stop = wutils::u32s(invalid_u8, wutils::ErrorPolicy::StopOnFirstError);
-        ASSERT_FALSE(res_u8_stop.is_valid);
-        ASSERT_EQ(res_u8_stop.value, U"valid_start_");
-        wutils::wprintln(L"Test 8.3 (Invalid UTF-8: StopOnFirstError): Passed");
+        SUBCASE("SkipInvalidValues") {
+            auto res = wutils::u32s(invalid_u8, wutils::ErrorPolicy::SkipInvalidValues);
+            CHECK_FALSE(res.is_valid);
+            CHECK(res.value == U"valid_start__invalid_middle__end");
+        }
 
-        // 2. Invalid UTF-16 sequences (unpaired surrogates)
+        SUBCASE("StopOnFirstError") {
+            auto res = wutils::u32s(invalid_u8, wutils::ErrorPolicy::StopOnFirstError);
+            CHECK_FALSE(res.is_valid);
+            CHECK(res.value == U"valid_start_");
+        }
+    }
+
+    SUBCASE("Invalid UTF-16 sequences") {
         const char16_t invalid_u16_data[] = {
             u'v', u'a', u'l', u'i', u'd', u'_',
             0xD800, // Unpaired high surrogate
             u'_', u'i', u'n', u'v', u'a', u'l', u'i', u'd', u'_',
             0xDFFF, // Unpaired low surrogate
-            u'_', u'e', u'n', u'd'
+            u'_', u'e', 'n', 'd'
         };
         std::u16string invalid_u16(invalid_u16_data, sizeof(invalid_u16_data) / sizeof(char16_t));
 
-        // Test: UseReplacementCharacter
-        auto res_u16_rep = wutils::u8s(invalid_u16, wutils::ErrorPolicy::UseReplacementCharacter);
-        ASSERT_FALSE(res_u16_rep.is_valid);
-        const std::u8string expected_u8_rep = u8"valid_"s + std::u8string(wutils::detail::REPLACEMENT_CHAR_8) + u8"_invalid_" + std::u8string(wutils::detail::REPLACEMENT_CHAR_8) + u8"_end";
-        ASSERT_EQ(res_u16_rep.value, expected_u8_rep);
-        wutils::wprintln(L"Test 9.1 (Invalid UTF-16: UseReplacementCharacter): Passed");
+        SUBCASE("UseReplacementCharacter") {
+            auto res = wutils::u8s(invalid_u16, wutils::ErrorPolicy::UseReplacementCharacter);
+            CHECK_FALSE(res.is_valid);
+            const std::u8string expected = u8"valid_"s + std::u8string(wutils::detail::REPLACEMENT_CHAR_8) + u8"_invalid_" + std::u8string(wutils::detail::REPLACEMENT_CHAR_8) + u8"_end";
+            CHECK(res.value == expected);
+        }
 
-        // Test: SkipInvalidValues
-        auto res_u16_skip = wutils::u8s(invalid_u16, wutils::ErrorPolicy::SkipInvalidValues);
-        ASSERT_FALSE(res_u16_skip.is_valid);
-        ASSERT_EQ(res_u16_skip.value, u8"valid__invalid__end");
-        wutils::wprintln(L"Test 9.2 (Invalid UTF-16: SkipInvalidValues): Passed");
+        SUBCASE("SkipInvalidValues") {
+            auto res = wutils::u8s(invalid_u16, wutils::ErrorPolicy::SkipInvalidValues);
+            CHECK_FALSE(res.is_valid);
+            CHECK(res.value == u8"valid__invalid__end");
+        }
 
-        // Test: StopOnFirstError
-        auto res_u16_stop = wutils::u8s(invalid_u16, wutils::ErrorPolicy::StopOnFirstError);
-        ASSERT_FALSE(res_u16_stop.is_valid);
-        ASSERT_EQ(res_u16_stop.value, u8"valid_");
-        wutils::wprintln(L"Test 9.3 (Invalid UTF-16: StopOnFirstError): Passed");
-
-        wutils::wprintln(L"All error handling tests passed!");
+        SUBCASE("StopOnFirstError") {
+            auto res = wutils::u8s(invalid_u16, wutils::ErrorPolicy::StopOnFirstError);
+            CHECK_FALSE(res.is_valid);
+            CHECK(res.value == u8"valid_");
+        }
     }
-
-    wutils::wprintln(L"All tests passed! 😄");
-
 }

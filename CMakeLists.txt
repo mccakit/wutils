@@ -11,6 +11,15 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
+# Add doctest
+include(FetchContent)
+FetchContent_Declare(
+  doctest
+  GIT_REPOSITORY https://github.com/doctest/doctest.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(doctest)
+
 # Add compiler-specific flags
 if(MSVC)
     set(CMAKE_CXX_FLAGS "/W4 /WX /EHsc /utf-8")
@@ -28,6 +37,8 @@ set(EXAMPLE_SOURCES wutils.cpp example.cpp)
 
 # Add executable target
 add_executable(testwutils ${TEST_SOURCES})
+target_link_libraries(testwutils PRIVATE doctest)
+target_include_directories(testwutils PRIVATE ${doctest_SOURCE_DIR}/doctest)
 add_executable(example ${EXAMPLE_SOURCES})
 
 # Enable testing with CTest
