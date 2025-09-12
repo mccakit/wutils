@@ -7,6 +7,7 @@ set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build, options are: 
 project(TestWutils CXX)
 
 # Set the required C++ standard.
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
@@ -28,14 +29,6 @@ set(EXAMPLE_SOURCES wutils.cpp example.cpp)
 # Add executable target
 add_executable(testwutils ${TEST_SOURCES})
 add_executable(example ${EXAMPLE_SOURCES})
-
-set_target_properties(testwutils PROPERTIES
-    CXX_STANDARD 26
-)
-
-set_target_properties(example PROPERTIES
-    CXX_STANDARD 20
-)
 
 # Enable testing with CTest
 enable_testing()

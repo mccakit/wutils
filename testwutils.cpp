@@ -1,7 +1,7 @@
 #include <string>
 #include <sstream>
 #include <string_view>
-#include <vector>
+#include <array>
 #include <locale>
 
 #include "wutils.hpp"
@@ -9,55 +9,31 @@
 
 using namespace std::string_literals;
 
-// Requires support for C++26 #embed
-// // Clang doesn't have this flag even though they do support #embed :(
-// static_assert(__cpp_pp_embed >= 202502L, "Requires #embed support"); 
-static constexpr char8_t test_data[] = {
-#embed "test_data.txt"
-};
-
 struct InputData {
     int width;
     std::u8string text;
 };
 
-std::vector<InputData> parse_test_data() {
+std::array<InputData, 16> test_data {{
+    {13, u8"Hello, World!"},
+    {6, u8"Résumé"},
+    {6, u8"😂😂😂"},
+    {0, u8""},
+    {2, u8"👩🏼‍🚀"},
+    {4, u8"𐌀𐌍𐌓𐌀"},
+    {11, u8"𝕄𝕒𝕥𝕙𝕖𝕞𝕒𝕥𝕚𝕔𝕤"},
+    {6, u8"🌍🌎🌏"},
+    {2, u8"👨‍👩‍👧‍👦"},
+    {10, u8"𠔻𠕋𠖊𠖍𠖐"},
+    {2, u8"𠮷"},
+    {6, u8"𠀤𠀧𠁀"},
+    {4, u8"𠊛好"},
+    {6, u8"𪚥𪆷𪃹"},
+    {6, u8"𪜈𪜋𪜌"},
+    {7, u8"اَلْعَرَبِيَّةُ"}
 
-    std::vector<InputData> inputs;
+}};
 
-    bool readWidth = true;
-    std::string width_s = "";
-    int width_n = 0;
-    std::u8string text = u8"";
-
-    // Read text file, format: 1st line = expected width, 2nd line = text to read
-    for (const auto &c: test_data) {
-        if (c == u8'\n') {
-            if (readWidth) {
-                try {
-                    width_n = std::stoi(width_s);
-                } catch (const std::invalid_argument &e) {
-                    throw;
-                }
-            } else {
-                inputs.emplace_back(width_n, text);
-                width_s.clear();
-                text.clear();
-            }
-
-            readWidth = !readWidth;
-            continue;
-        } else {
-            if (readWidth) {
-                width_s += static_cast<char>(c);
-            } else {
-                text += c;
-            }
-        }
-    }
-
-    return inputs;
-}
 
 void test_width(std::wstring ws, const int expected) {
     int width = wutils::wswidth(ws);
@@ -107,7 +83,6 @@ void run_tests(const int width, const std::u8string u8s) {
 }
 
 int main() {
-    std::vector<InputData> data = parse_test_data();
 
     // Initialize locale
     std::locale::global(std::locale(""));
@@ -115,7 +90,7 @@ int main() {
     wutils::wprintln(L"Running tests...");
 
     // Test strings from test_data file
-    for (const auto& [width, text] : data) {
+    for (const auto& [width, text] : test_data) {
         auto ws = wutils::ws(text);
         ASSERT_TRUE(ws);
         wutils::wprintln(*ws);
