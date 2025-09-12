@@ -13,11 +13,11 @@ using namespace std::string_literals;
 // Requires support for C++26 #embed
 // // Clang doesn't have this flag even though they do support #embed :(
 // static_assert(__cpp_pp_embed >= 202502L, "Requires #embed support"); 
-constexpr uint8_t raw_test_data[] = {
-    #embed "test_data.txt"
-};
+static constexpr std::u8string test_data() {
 
-constexpr std::u8string test_data() {
+    uint8_t raw_test_data[] = {
+        #embed "test_data.txt"
+    };
 
     return raw_test_data
         | std::ranges::views::transform([](auto i) {
@@ -40,7 +40,8 @@ std::vector<InputData> parse_test_data() {
     std::string width_s = "";
     int width_n = 0;
     std::u8string text = u8"";
-    // Read two lines at a time until end of file
+
+    // Read text file, format: 1st line = expected width, 2nd line = text to read
     for (const auto &c: test_data()) {
         if (c == u8'\n') {
             if (readWidth) {
