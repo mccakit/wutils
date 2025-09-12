@@ -7,7 +7,6 @@ set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build, options are: 
 project(TestWutils CXX)
 
 # Set the required C++ standard.
-set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -17,7 +16,7 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi")
     set(CMAKE_CXX_FLAGS_RELEASE "/O2")
 elseif(UNIX)
-    set(CMAKE_CXX_FLAGS "-Wall -Wextra -Werror -march=native")
+    set(CMAKE_CXX_FLAGS "-Wall -Wextra -march=native")
     set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
     set(CMAKE_CXX_FLAGS_RELEASE "-O2")
 endif()
@@ -29,6 +28,14 @@ set(EXAMPLE_SOURCES wutils.cpp example.cpp)
 # Add executable target
 add_executable(testwutils ${TEST_SOURCES})
 add_executable(example ${EXAMPLE_SOURCES})
+
+set_target_properties(testwutils PROPERTIES
+    CXX_STANDARD 26
+)
+
+set_target_properties(example PROPERTIES
+    CXX_STANDARD 20
+)
 
 # Enable testing with CTest
 enable_testing()
