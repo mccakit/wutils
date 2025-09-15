@@ -70,7 +70,6 @@
 #include <string>
 #include <string_view>
 #include <stdint.h>
-#include <expected>
 
 #ifdef _WIN32
 #include <Windows.h>
