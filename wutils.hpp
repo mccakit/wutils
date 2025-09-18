@@ -82,7 +82,7 @@ struct ConversionResult {
 
 namespace detail {
 
-static constexpr inline const std::u8string_view REPLACEMENT_CHAR_8 = u8"�";
+static constexpr inline const char8_t *REPLACEMENT_CHAR_8 = u8"�";
 static constexpr inline const char16_t REPLACEMENT_CHAR_16 = u'�';
 static constexpr inline const char32_t REPLACEMENT_CHAR_32 = U'�';
 
@@ -98,13 +98,13 @@ template <typename T, template <typename...> class C>
 concept instantiation_of = detail::instantiation_of_impl<T, C>::value;
 
 template <typename T, template <typename...> class... Cs>
-concept instantiation_of_one_of = (instantiation_of<T, Cs> or ...);
+concept instantiation_of_one_of = (... or instantiation_of<T, Cs>);
 
 template <typename T>
-concept String = instantiation_of<T, std::basic_string>;
+concept BasicString = instantiation_of<T, std::basic_string>;
 
 template <typename T>
-concept StringViewLike = instantiation_of_one_of<T, std::basic_string, std::basic_string_view>;
+concept BasicStringView = instantiation_of_one_of<T, std::basic_string, std::basic_string_view>;
 
 template<typename T>
 concept is_unicode_char = std::is_same_v<T, char8_t> || std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>;
@@ -158,7 +158,7 @@ inline ConversionResult<std::u32string> u32(const std::u32string_view u32s,
     return {std::u32string(u32s), true};
 }
 
-template<detail::StringViewLike From , detail::String To>
+template<detail::BasicStringView From , detail::BasicString To>
 requires is_implicitly_convertible<typename From::value_type, typename To::value_type>
 To convert_implicitly(From from) {
     if constexpr (std::is_same_v<typename From::value_type, typename To::value_type>) {
@@ -186,18 +186,19 @@ To convert_implicitly(From from) {
 
 
 } // namespace detail
+using detail::BasicString, detail::BasicStringView;
 
 // "Dispatch" our functions based on conversion type //
 
 // OVERLOAD 1: Implicit conversion (fast path).
-template<detail::StringViewLike From, detail::String To>
+template<BasicStringView From, BasicString To>
 requires (detail::is_implicitly_convertible<typename From::value_type, typename To::value_type>)
 inline ConversionResult<To> convert(From from, [[maybe_unused]] ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return {detail::convert_implicitly<From, To>(from), true};
 }
 
 // OVERLOAD 2: The "Unicode Kernel." Both types are different Unicode formats.
-template<detail::StringViewLike From, detail::String To>
+template<BasicStringView From, BasicString To>
 requires (
         !detail::is_implicitly_convertible<typename From::value_type, typename To::value_type> &&
         detail::is_unicode_char<typename From::value_type> && detail::is_unicode_char<typename To::value_type>
@@ -214,7 +215,7 @@ inline ConversionResult<To> convert(From from, ErrorPolicy errorPolicy = ErrorPo
 }
 
 // OVERLOAD 3: Entry point. Convert non-Unicode source to a Unicode pivot and recurse.
-template<detail::StringViewLike From, detail::String To>
+template<BasicStringView From, BasicString To>
 requires (!detail::is_unicode_char<typename From::value_type> && !detail::is_implicitly_convertible<typename From::value_type, typename To::value_type>)
 inline ConversionResult<To> convert(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     if constexpr (std::is_same_v<typename From::value_type, char>) {
@@ -227,7 +228,7 @@ inline ConversionResult<To> convert(From from, ErrorPolicy errorPolicy = ErrorPo
 }
 
 // OVERLOAD 4: Exit point. Source is Unicode, destination is not.
-template<detail::StringViewLike From, detail::String To>
+template<BasicStringView From, BasicString To>
 requires (
         !detail::is_implicitly_convertible<typename From::value_type, typename To::value_type> && 
         detail::is_unicode_char<typename From::value_type> && !detail::is_unicode_char<typename To::value_type>
@@ -262,32 +263,32 @@ inline std::string u8s_to_s(std::u8string_view from) {
 }
 
 // "Advanced" conversions that require ConversionResult
-template<detail::StringViewLike From>
+template<BasicStringView From>
 inline ConversionResult<std::u8string> u8s(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<From, std::u8string>(from, errorPolicy);
 }
 
-template<detail::StringViewLike From>
+template<BasicStringView From>
 inline ConversionResult<std::u16string> u16s(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<From, std::u16string>(from, errorPolicy);
 }
 
-template<detail::StringViewLike From>
+template<BasicStringView From>
 inline ConversionResult<std::u32string> u32s(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<From, std::u32string>(from, errorPolicy);
 }
 
-template<detail::StringViewLike From>
+template<BasicStringView From>
 inline ConversionResult<ustring> us(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<From, ustring>(from, errorPolicy);
 }
 
-template<detail::StringViewLike From>
+template<BasicStringView From>
 inline ConversionResult<std::wstring> ws(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<From, std::wstring>(from, errorPolicy);
 }
 
-template<detail::StringViewLike From>
+template<BasicStringView From>
 inline ConversionResult<std::string> s(From from, ErrorPolicy errorPolicy = ErrorPolicy::UseReplacementCharacter) {
     return convert<From, std::string>(from, errorPolicy);
 }
