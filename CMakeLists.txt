@@ -16,6 +16,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
+# Scan for modules
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+
 # Add compiler-specific flags
 # Do NOT set CMAKE_CXX_FLAGS for modules
 # CMake will handle module compilation flags automatically
