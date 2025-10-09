@@ -1,15 +1,27 @@
 # Minimum CMake version required
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.28)
 
-set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
+# IMPORTANT: Force Ninja generator for C++20 modules
+if(NOT CMAKE_GENERATOR STREQUAL "Ninja")
+    message(FATAL_ERROR "C++20 modules require the Ninja generator. Use: cmake -G Ninja -B build")
+endif()
+
+set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build.")
 
 # Project information
 project(TestWutils CXX)
 
-# Set the required C++ standard.
+# Set the required C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
+
+# Do NOT set CMAKE_CXX_FLAGS for modules
+# CMake will handle module compilation flags automatically
+# Only set these for non-module targets
+set(COMMON_FLAGS "-Wall -Wextra -march=native")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O2")
 
 # Add doctest
 include(FetchContent)
@@ -20,29 +32,38 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(doctest)
 
-# Add compiler-specific flags
-if(MSVC)
-    set(CMAKE_CXX_FLAGS "/W4 /WX /EHsc /utf-8")
-    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi")
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2")
-elseif(UNIX)
-    set(CMAKE_CXX_FLAGS "-Wall -Wextra -march=native")
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O2")
-endif()
+# DON'T add custom compile options to module targets
+# Let CMake handle it
 
-# Define the source files
-set(TEST_SOURCES wutils.cpp testwutils.cpp)
-set(EXAMPLE_SOURCES wutils.cpp example.cpp)
+# Create a library for the module-based build
+add_library(wutils)
+target_sources(wutils 
+    PUBLIC 
+        FILE_SET cxx_modules 
+        TYPE CXX_MODULES 
+        FILES wutils.cppm
+    PRIVATE
+        wutils.cpp
+)
+target_compile_definitions(wutils PRIVATE WUTILS_MODULE)
+# DON'T manually set include directories for module outputs
 
-# Add executable target
-add_executable(testwutils ${TEST_SOURCES})
-target_link_libraries(testwutils PRIVATE doctest)
-target_include_directories(testwutils PRIVATE ${doctest_SOURCE_DIR}/doctest)
-add_executable(example ${EXAMPLE_SOURCES})
+# Add executable target for module-based build
+add_executable(testwutils_module testwutils.cpp)
+target_link_libraries(testwutils_module PRIVATE wutils doctest)
+target_include_directories(testwutils_module PRIVATE ${doctest_SOURCE_DIR}/doctest)
+target_compile_definitions(testwutils_module PRIVATE WUTILS_MODULE)
+
+# Add executable target for header-only build
+add_executable(testwutils_header testwutils.cpp wutils.cpp)
+target_link_libraries(testwutils_header PRIVATE doctest)
+target_include_directories(testwutils_header PRIVATE ${doctest_SOURCE_DIR}/doctest)
+
+add_executable(example example.cpp)
+target_link_libraries(example PRIVATE wutils)
+target_compile_definitions(example PRIVATE WUTILS_MODULE)
 
 # Enable testing with CTest
 enable_testing()
-
-# Add the test executable to CTest
-add_test(NAME testwutils COMMAND testwutils)
+add_test(NAME testwutils_module COMMAND testwutils_module)
+add_test(NAME testwutils_header COMMAND testwutils_header)

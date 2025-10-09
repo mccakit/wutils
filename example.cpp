@@ -1,7 +1,11 @@
 #include <cassert>
 #include <string>
 
+#ifdef WUTILS_MODULE
+import wutils;
+#else
 #include "wutils.hpp"
+#endif
 
 // Define functions that use "safe" UTF encoded string types
 void do_something(std::u8string u8s) { (void)u8s; }

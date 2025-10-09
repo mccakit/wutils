@@ -1,3 +1,4 @@
+
 // Original Source: https://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c
 // Changes:
 // - Port to C++
@@ -65,6 +66,12 @@
  * Latest version: http://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c
  */
 
+#ifdef WUTILS_MODULE
+module;
+#endif
+
+#include <cstddef>
+
 #include <stdint.h>
 #include <uchar.h>
 #include <wchar.h>
@@ -72,11 +79,19 @@
 #include <string>
 #include <string_view>
 
+#ifndef WUTILS_MODULE
+#include "wutils.hpp"
+#endif
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
 
-#include "wutils.hpp"
+#ifdef WUTILS_MODULE
+module wutils;
+#endif
+
+using std::size_t;
 
 namespace internal {
 

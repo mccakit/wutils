@@ -3,7 +3,13 @@
 #include <string>
 
 #include "doctest.h"
+
+// Import wutils as either module or header
+#ifdef WUTILS_MODULE
+import wutils;
+#else
 #include "wutils.hpp"
+#endif
 
 using namespace std::string_literals;
 
