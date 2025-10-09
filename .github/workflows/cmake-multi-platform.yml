@@ -41,6 +41,10 @@ jobs:
             c_compiler: cl
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
       
       - name: Install Ninja
         uses: seanmiddleditch/gha-setup-ninja@master
