@@ -5,10 +5,10 @@ project('Wutils', 'cpp',
 )
 inc = include_directories('include')
 lib = static_library('wutils', files('src/wutils.cpp'), include_directories: inc)
-wutils_dep = declare_dependency(link_with: lib, include_directories: inc)
+wutils= declare_dependency(link_with: lib, include_directories: inc)
 
 if not meson.is_cross_build()
-  gtest_dep = dependency('gtest', method: 'pkg-config', required: true)
-  test_header = executable('test_header', 'tests/test_header.cpp', dependencies: [wutils_dep, gtest_dep])
+  gtest = dependency('gtest', method: 'pkg-config', required: true)
+  test_header = executable('test_header', 'tests/test_header.cpp', dependencies: [wutils, gtest])
   test('test-header', test_header)
 endif
