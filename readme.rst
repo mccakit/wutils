@@ -6,7 +6,7 @@ Include Header
 
 .. code-block:: cpp
 
-   #include <wutils/wutils.hpp>
+   #include <wutils.hpp>
 
 Common Conversions
 ------------------
