@@ -42,5 +42,6 @@
 
 .cache/
 build/
+builddir/
 /cpm_modules/
 /cmake/
